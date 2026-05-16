@@ -9,8 +9,8 @@ Bot pessoal de finanças com interface no Telegram, API backend e dashboard web 
 | Componente | Onde roda | Custo |
 |-----------|-----------|-------|
 | Banco de dados | [Supabase](https://supabase.com) | Gratuito |
-| Backend API | [Fly.io](https://fly.io) | ~US$2/mês |
-| Bot Telegram | [Fly.io](https://fly.io) | ~US$2/mês |
+| Backend API | [Fly.io](https://fly.io) | Gratuito (free allowance: 3 VMs 256MB) |
+| Bot Telegram | [Fly.io](https://fly.io) | Gratuito (incluso no mesmo allowance) |
 | Dashboard web | [Vercel](https://vercel.com) | Gratuito |
 | IA (OCR/texto) | [Groq](https://console.groq.com) | Gratuito |
 
