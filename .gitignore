@@ -28,4 +28,5 @@ dashboard/tsconfig.tsbuildinfo
 dist/
 build/
 *.spec
+FinanceBotSetup.spec
 dashboard/.vercel/
