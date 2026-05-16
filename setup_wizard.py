@@ -29,7 +29,7 @@ RED     = "#f87171"
 YELLOW  = "#fbbf24"
 TEXT    = "#e2e8f0"
 SUBTEXT = "#94a3b8"
-FONT    = "Segoe UI"
+FONT    = "Calibri"
 
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
@@ -83,23 +83,27 @@ def _update_toml(path, app_name, replacements=None):
 
 # ── Wizard ────────────────────────────────────────────────────────────────────
 class Wizard(tk.Tk):
+    W, H = 760, 580
+
     def __init__(self):
         super().__init__()
+        self.withdraw()  # hide until centered
         self.title("Finance Bot — Setup")
-        self.geometry("760x580")
+        self.geometry(f"{self.W}x{self.H}")
         self.resizable(False, False)
         self.configure(bg=BG)
-        self._center()
         self._frame = None
         self._vars  = {}
         self._urls  = {}
         self._show(self._page_welcome)
+        self._center()
+        self.deiconify()  # show centered
 
     def _center(self):
         self.update_idletasks()
-        x = (self.winfo_screenwidth()  - 760) // 2
-        y = (self.winfo_screenheight() - 580) // 2
-        self.geometry(f"760x580+{x}+{y}")
+        x = (self.winfo_screenwidth()  - self.W) // 2
+        y = (self.winfo_screenheight() - self.H) // 2
+        self.geometry(f"{self.W}x{self.H}+{x}+{y}")
 
     def _show(self, fn):
         if self._frame:
@@ -144,11 +148,20 @@ class Wizard(tk.Tk):
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True)
 
-        tk.Label(body, text="💰", bg=BG, font=(FONT, 64)).pack(pady=(60, 8))
+        # Icon: white circle with $ drawn on canvas
+        c = tk.Canvas(body, width=96, height=96, bg=BG, highlightthickness=0)
+        c.pack(pady=(52, 16))
+        c.create_oval(4, 4, 92, 92, fill="white", outline="")
+        c.create_text(48, 48, text="$", font=(FONT, 42, "bold"), fill=BG)
+
         tk.Label(body, text="Finance Bot", bg=BG, fg=TEXT,
-                 font=(FONT, 28, "bold")).pack()
-        tk.Label(body, text="Setup Wizard", bg=BG, fg=SUBTEXT,
-                 font=(FONT, 13)).pack(pady=(4, 0))
+                 font=(FONT, 30, "bold")).pack()
+        tk.Label(body, text="Setup Wizard", bg=BG, fg=BLUE,
+                 font=(FONT, 13)).pack(pady=(2, 16))
+        tk.Label(body,
+                 text="Bot financeiro no Telegram com IA para registrar\n"
+                      "gastos por texto ou foto, e dashboard web para acompanhar tudo.",
+                 bg=BG, fg=SUBTEXT, font=(FONT, 11), justify="center").pack()
 
         self._footer(p, [
             lambda f: self._btn(f, "Iniciar →",
@@ -161,41 +174,147 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     def _page_accounts(self):
         import webbrowser
+
+        INSTRUCTIONS = {
+            "Supabase": (
+                "Como criar sua conta no Supabase",
+                "1. Acesse supabase.com e clique em 'Start your project'\n"
+                "2. Crie uma conta (GitHub recomendado)\n"
+                "3. Crie um novo projeto — escolha a região São Paulo\n"
+                "4. Aguarde o projeto iniciar (~1 min)\n"
+                "5. Vá em Settings → API\n"
+                "6. Anote o Project URL e o service_role key\n"
+                "   (você vai precisar deles mais pra frente)\n\n"
+                "7. Vá em SQL Editor e cole o conteúdo do arquivo\n"
+                "   schema.sql (está na raiz do projeto) e execute.\n"
+                "   Isso cria as tabelas do banco de dados.",
+            ),
+            "Fly.io": (
+                "Como criar sua conta no Fly.io",
+                "1. Acesse fly.io e clique em 'Sign Up'\n"
+                "2. Crie uma conta com GitHub ou e-mail\n\n"
+                "⚠️  CARTÃO DE CRÉDITO OBRIGATÓRIO\n"
+                "   O Fly.io exige um cartão para validar a conta,\n"
+                "   mas NÃO cobra enquanto você ficar dentro do\n"
+                "   plano gratuito (até 3 máquinas pequenas).\n"
+                "   Este projeto usa 2 máquinas — dentro do limite.\n\n"
+                "3. Após criar a conta, o wizard fará o login\n"
+                "   automaticamente na próxima etapa.",
+            ),
+            "Vercel": (
+                "Como criar sua conta no Vercel",
+                "1. Acesse vercel.com e clique em 'Sign Up'\n"
+                "2. Crie uma conta com GitHub (recomendado)\n"
+                "3. Escolha o plano Hobby (gratuito)\n\n"
+                "O Vercel hospeda o dashboard web do Finance Bot.\n"
+                "O plano gratuito cobre totalmente este projeto.\n\n"
+                "4. Após criar a conta, o wizard fará o login\n"
+                "   automaticamente na próxima etapa.",
+            ),
+            "Groq": (
+                "Como criar sua conta no Groq",
+                "1. Acesse console.groq.com\n"
+                "2. Crie uma conta (GitHub recomendado)\n"
+                "3. Vá em API Keys no menu lateral\n"
+                "4. Clique em 'Create API Key'\n"
+                "5. Dê um nome e copie a chave gerada\n"
+                "   (começa com 'gsk_...')\n\n"
+                "O Groq fornece a IA que interpreta as mensagens\n"
+                "e fotos de comprovantes enviadas ao bot.\n"
+                "O plano gratuito tem limite de uso, mas é mais\n"
+                "do que suficiente para uso pessoal.",
+            ),
+            "Telegram": (
+                "Como criar o bot no Telegram",
+                "1. Abra o Telegram e busque por @BotFather\n"
+                "2. Envie o comando /newbot\n"
+                "3. Escolha um nome para o bot (ex: Meu Finance Bot)\n"
+                "4. Escolha um username (ex: meufinance_bot)\n"
+                "5. O BotFather vai te enviar um token\n"
+                "   (ex: 123456:ABC-DEF...)\n"
+                "   Guarde esse token — você vai precisar depois.\n\n"
+                "6. Para saber seu User ID:\n"
+                "   Fale com @userinfobot no Telegram.\n"
+                "   Ele responde com seu ID numérico.\n"
+                "   Guarde esse número também.",
+            ),
+        }
+
+        def _show_instructions(name):
+            title, body_text = INSTRUCTIONS[name]
+            popup = tk.Toplevel(self)
+            popup.title(title)
+            popup.configure(bg=BG)
+            popup.resizable(False, False)
+            popup.grab_set()  # modal
+
+            tk.Label(popup, text=title, bg=BG, fg=TEXT,
+                     font=(FONT, 13, "bold"), pady=16, padx=24).pack(anchor="w")
+
+            ttk.Separator(popup).pack(fill="x", padx=24)
+
+            tk.Label(popup, text=body_text, bg=BG, fg=SUBTEXT,
+                     font=(FONT, 10), justify="left",
+                     padx=24, pady=16).pack(anchor="w")
+
+            ttk.Separator(popup).pack(fill="x", padx=24)
+
+            tk.Button(popup, text="Fechar", command=popup.destroy,
+                      bg=PANEL, fg=TEXT, relief="flat", font=(FONT, 10),
+                      padx=18, pady=7, cursor="hand2").pack(side="right", padx=24, pady=12)
+
+            # Center popup over wizard
+            popup.update_idletasks()
+            pw, ph = popup.winfo_reqwidth(), popup.winfo_reqheight()
+            px = self.winfo_x() + (self.W - pw) // 2
+            py = self.winfo_y() + (self.H - ph) // 2
+            popup.geometry(f"+{px}+{py}")
+
         p = tk.Frame(self, bg=BG)
         self._header(p, "Criar contas",
-                     "Crie uma conta gratuita em cada serviço abaixo antes de continuar")
+                     "Crie uma conta em cada serviço — clique em '?' para instruções")
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=28)
 
         providers = [
-            ("🗄️  Supabase",     "Banco de dados",            "https://supabase.com"),
-            ("✈️  Fly.io",        "Hospedagem do bot e API",   "https://fly.io"),
-            ("▲  Vercel",         "Hospedagem do dashboard",   "https://vercel.com"),
-            ("🤖  Groq",          "Inteligência artificial",   "https://console.groq.com"),
-            ("💬  Telegram",      "Criar o bot (@BotFather)",  "https://t.me/BotFather"),
+            ("Supabase",  "Banco de dados",                      "https://supabase.com",      "Gratuito"),
+            ("Fly.io",    "Hospedagem do bot e API  ⚠️ pede cartão", "https://fly.io",         "Gratuito*"),
+            ("Vercel",    "Hospedagem do dashboard",              "https://vercel.com",         "Gratuito"),
+            ("Groq",      "Inteligência artificial",              "https://console.groq.com",   "Gratuito"),
+            ("Telegram",  "Criar o bot (@BotFather)",             "https://t.me/BotFather",     "Gratuito"),
         ]
 
-        for icon_label, desc, url in providers:
-            row = tk.Frame(body, bg=PANEL, pady=10, padx=16)
-            row.pack(fill="x", pady=4)
+        for name, desc, url, badge in providers:
+            row = tk.Frame(body, bg=PANEL, pady=8, padx=14)
+            row.pack(fill="x", pady=3)
 
+            # Left: info
             info = tk.Frame(row, bg=PANEL)
             info.pack(side="left", fill="x", expand=True)
-            tk.Label(info, text=icon_label, bg=PANEL, fg=TEXT,
+            tk.Label(info, text=name, bg=PANEL, fg=TEXT,
                      font=(FONT, 11, "bold")).pack(anchor="w")
             tk.Label(info, text=desc, bg=PANEL, fg=SUBTEXT,
                      font=(FONT, 9)).pack(anchor="w")
 
-            tk.Button(row, text="Abrir site →",
-                      command=lambda u=url: webbrowser.open(u),
-                      bg=BLUE, fg="white", activebackground=BLUE, activeforeground="white",
-                      relief="flat", font=(FONT, 9, "bold"),
-                      padx=12, pady=5, cursor="hand2").pack(side="right", padx=4)
+            # Right: badge + buttons
+            right = tk.Frame(row, bg=PANEL)
+            right.pack(side="right")
 
-        tk.Label(body,
-                 text="Fly.io pede cartão de crédito no cadastro, mas não cobra dentro do plano gratuito.",
-                 bg=BG, fg=SUBTEXT, font=(FONT, 8)).pack(anchor="w", pady=(10, 0))
+            tk.Label(right, text=badge, bg=PANEL, fg=GREEN,
+                     font=(FONT, 8, "bold")).pack(side="left", padx=(0, 6))
+
+            tk.Button(right, text="?",
+                      command=lambda n=name: _show_instructions(n),
+                      bg="#334155", fg=SUBTEXT, activebackground="#475569",
+                      relief="flat", font=(FONT, 9, "bold"),
+                      padx=8, pady=4, cursor="hand2").pack(side="left", padx=2)
+
+            tk.Button(right, text="Abrir site →",
+                      command=lambda u=url: webbrowser.open(u),
+                      bg=BLUE, fg="white", activebackground=BLUE,
+                      relief="flat", font=(FONT, 9, "bold"),
+                      padx=10, pady=4, cursor="hand2").pack(side="left", padx=2)
 
         self._footer(p, [
             lambda f: self._btn(f, "Já criei todas →",
