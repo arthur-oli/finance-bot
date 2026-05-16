@@ -3,6 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 const API_KEY = process.env.API_SECRET_KEY ?? "";
 
+const ALLOWED_PATHS = [
+  "/api/transactions",
+  "/api/cards",
+  "/api/analytics",
+  "/api/forecast",
+  "/api/goals",
+  "/api/subscriptions",
+  "/api/settings",
+];
+
 export async function GET(req: NextRequest) {
   return proxy(req, "GET");
 }
@@ -21,9 +31,14 @@ export async function DELETE(req: NextRequest) {
 
 async function proxy(req: NextRequest, method: string) {
   const path = req.nextUrl.searchParams.get("path") ?? "";
-  if (!path.startsWith("/api/")) {
+
+  if (
+    path.includes("..") ||
+    !ALLOWED_PATHS.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p + "?"))
+  ) {
     return NextResponse.json({ error: "Invalid path" }, { status: 400 });
   }
+
   const url = `${BACKEND}${path}`;
 
   const headers: Record<string, string> = {

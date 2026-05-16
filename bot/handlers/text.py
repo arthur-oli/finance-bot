@@ -5,7 +5,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 import structlog
 from bot.services import backend_client as bc
-from bot.services.ai import interpret_text
+from bot.services.ai import interpret_text, validate_transaction
 
 _raw = os.environ.get("TELEGRAM_USER_IDS", os.environ.get("TELEGRAM_USER_ID", ""))
 _ALLOWED = {int(x.strip()) for x in _raw.split(",") if x.strip()}
@@ -65,6 +65,13 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "Tente algo como: _gastei 50 no mercado_ ou _recebi 3000 de salário_",
             parse_mode="Markdown",
         )
+        return
+
+    try:
+        parsed = validate_transaction(parsed)
+    except ValueError as e:
+        log.warning("validate_transaction.rejected", reason=str(e))
+        await update.message.reply_text("Não consegui validar os dados da transação. Tente reformular.")
         return
 
     parsed["user"] = update.effective_user.first_name

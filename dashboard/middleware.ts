@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { verifySessionToken } from "@/lib/session";
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/login" || pathname.startsWith("/api/auth")) {
     return NextResponse.next();
   }
 
-  const auth = request.cookies.get("auth")?.value;
-  if (auth && auth === process.env.DASHBOARD_PASSWORD) {
+  const token = request.cookies.get("session")?.value;
+  const secret = process.env.SESSION_SECRET ?? "";
+
+  if (token && (await verifySessionToken(token, secret))) {
     return withSecurityHeaders(NextResponse.next());
   }
 

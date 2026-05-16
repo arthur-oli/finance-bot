@@ -5,7 +5,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 import structlog
 from bot.services import backend_client as bc
-from bot.services.ai import interpret_image
+from bot.services.ai import interpret_image, validate_transaction
 
 _raw = os.environ.get("TELEGRAM_USER_IDS", os.environ.get("TELEGRAM_USER_ID", ""))
 _ALLOWED = {int(x.strip()) for x in _raw.split(",") if x.strip()}
@@ -70,20 +70,31 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Normalize to list for uniform handling
     items = parsed if isinstance(parsed, list) else [parsed]
-    sender = update.effective_user.first_name
-    for item in items:
-        item["user"] = sender
-    ctx.user_data[PENDING_KEY] = items
 
-    tx_date = items[0].get("date", str(date.today()))
-    card_id = items[0].get("card_id")
+    # Validate each item from LLM
+    validated_items = []
+    for item in items:
+        try:
+            validated_items.append(validate_transaction(item))
+        except ValueError as e:
+            log.warning("validate_transaction.rejected", reason=str(e))
+            await update.message.reply_text("Não consegui validar os dados do comprovante. Tente novamente.")
+            return
+
+    sender = update.effective_user.first_name
+    for item in validated_items:
+        item["user"] = sender
+    ctx.user_data[PENDING_KEY] = validated_items
+
+    tx_date = validated_items[0].get("date", str(date.today()))
+    card_id = validated_items[0].get("card_id")
     card_name = ""
     if card_id:
         card = next((c for c in cards if c["id"] == card_id), None)
         card_name = f"\n💳 Cartão: {card['name']}" if card else ""
 
-    if len(items) == 1:
-        t = items[0]
+    if len(validated_items) == 1:
+        t = validated_items[0]
         icon = "✅" if t["type"] == "income" else "❌"
         text_msg = (
             f"{icon} *Comprovante lido:*\n\n"
@@ -95,9 +106,9 @@ async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "Confirmar registro?"
         )
     else:
-        total = sum(float(t.get("amount", 0)) for t in items)
-        lines = [f"📷 *Comprovante lido ({len(items)} categorias):*\n", f"📅 Data: {tx_date}\n"]
-        for t in items:
+        total = sum(float(t.get("amount", 0)) for t in validated_items)
+        lines = [f"📷 *Comprovante lido ({len(validated_items)} categorias):*\n", f"📅 Data: {tx_date}\n"]
+        for t in validated_items:
             icon = "✅" if t["type"] == "income" else "❌"
             lines.append(f"{icon} {t.get('category', '-').capitalize()}: {_fmt_brl(t.get('amount', 0))}")
         lines.append(f"\n💰 Total: {_fmt_brl(total)}{card_name}\n\nConfirmar registro?")
