@@ -233,7 +233,7 @@ function TransactionsContent() {
 
     const cardMap = Object.fromEntries((cards ?? []).map(c => [c.id, c.name]));
     const rows = [
-      ["Data", "Descrição", "Categoria", "Cartão", "Tipo", "Valor (R$)"],
+      ["Data", "Descrição", "Categoria", "Cartão", "Tipo", "Valor (R$)", "Autor"],
       ...result.items.map(t => [
         t.date,
         t.description,
@@ -241,6 +241,7 @@ function TransactionsContent() {
         t.card_id ? (cardMap[t.card_id] ?? "") : "",
         t.type === "income" ? "Receita" : "Despesa",
         (t.type === "income" ? 1 : -1) * t.amount,
+        t.user ?? "",
       ]),
     ];
 
