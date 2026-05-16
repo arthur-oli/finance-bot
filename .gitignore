@@ -23,3 +23,9 @@ Thumbs.db
 
 # Build artifacts
 dashboard/tsconfig.tsbuildinfo
+
+# Wizard build output
+dist/
+build/
+*.spec
+dashboard/.vercel/
