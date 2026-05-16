@@ -1,167 +1,109 @@
 # Finance Bot — Setup Guide
 
-Bot pessoal de finanças com interface no Telegram, API backend e dashboard web.
+Bot pessoal de finanças com interface no Telegram, API backend e dashboard web — rodando 100% em cloud (sem precisar deixar o PC ligado).
 
 ---
 
-## Pré-requisitos
+## Visão geral
 
-- Python 3.9+
-- Node.js 18+
-- Conta no [Supabase](https://supabase.com) (gratuito)
-- Conta no [Groq](https://console.groq.com) (gratuito)
-- Bot no Telegram (via [@BotFather](https://t.me/BotFather))
-
----
-
-## 1. Banco de dados (Supabase)
-
-1. Crie um projeto no Supabase
-2. Vá em **SQL Editor** e rode o arquivo `supabase/migrations/001_initial_schema.sql`
-3. Anote:
-   - **Project URL** → `SUPABASE_URL`
-   - **service_role key** (em Project Settings > API) → `SUPABASE_SERVICE_ROLE_KEY`
+| Componente | Onde roda | Custo |
+|-----------|-----------|-------|
+| Banco de dados | [Supabase](https://supabase.com) | Gratuito |
+| Backend API | [Fly.io](https://fly.io) | ~US$2/mês |
+| Bot Telegram | [Fly.io](https://fly.io) | ~US$2/mês |
+| Dashboard web | [Vercel](https://vercel.com) | Gratuito |
+| IA (OCR/texto) | [Groq](https://console.groq.com) | Gratuito |
 
 ---
 
-## 2. Telegram Bot
+## Etapa 1 — Instalar ferramentas (uma vez só)
 
-1. Fale com [@BotFather](https://t.me/BotFather) → `/newbot` → siga as instruções
-2. Anote o token gerado → `TELEGRAM_BOT_TOKEN`
-3. Descubra seu Telegram User ID: fale com [@userinfobot](https://t.me/userinfobot) → `TELEGRAM_USER_ID`
-
----
-
-## 3. Groq API
-
-1. Crie conta em [console.groq.com](https://console.groq.com)
-2. Gere uma API Key → `GROQ_API_KEY`
+- [Node.js 18+](https://nodejs.org)
+- [flyctl](https://fly.io/docs/hands-on/install-flyctl/) — CLI do Fly.io
+- [Git](https://git-scm.com)
+- openssl (já vem no Mac/Linux; no Windows: `winget install -e --id ShiningLight.OpenSSL`)
 
 ---
 
-## 4. Backend
+## Etapa 2 — Criar contas (~15 min, tudo gratuito exceto Fly.io)
 
+### 2.1 Supabase
+1. Acesse [supabase.com](https://supabase.com) → **Start your project**
+2. Crie um projeto (região: South America)
+3. Vá em **SQL Editor** e cole + execute o conteúdo do arquivo `schema.sql` (raiz do projeto)
+4. Anote em **Settings → API**:
+   - **Project URL** → será pedido como `SUPABASE_URL`
+   - **service_role** key → será pedido como `SUPABASE_SERVICE_ROLE_KEY`
+
+### 2.2 Telegram Bot
+1. Abra o Telegram → busque **@BotFather** → envie `/newbot`
+2. Siga as instruções e anote o token → `TELEGRAM_BOT_TOKEN`
+3. Para descobrir seu user ID: fale com **@userinfobot** → `TELEGRAM_USER_IDS`
+   - Múltiplos usuários: separe por vírgula (`123456,789012`)
+
+### 2.3 Groq (IA)
+1. Acesse [console.groq.com](https://console.groq.com) → crie conta
+2. **API Keys → Create API Key** → anote → `GROQ_API_KEY`
+
+### 2.4 Fly.io
+1. Acesse [fly.io](https://fly.io) → **Sign Up** (pede cartão)
+2. No terminal: `fly auth login`
+
+### 2.5 Vercel
+1. Acesse [vercel.com](https://vercel.com) → **Sign Up**
+2. No terminal: `npx vercel login`
+
+---
+
+## Etapa 3 — Rodar o script de setup
+
+Com todas as chaves em mãos, rode **uma vez**:
+
+**Linux / Mac / WSL:**
 ```bash
-cd backend
-pip install -r requirements.txt
-cp .env.example .env
+bash setup.sh
 ```
 
-Edite `backend/.env`:
-
-```env
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-API_SECRET_KEY=qualquer-string-longa-e-aleatoria
-ALLOWED_ORIGINS=http://localhost:3000
+**Windows (PowerShell):**
+```powershell
+.\setup.ps1
 ```
 
-Inicie:
+O script vai:
+1. Pedir cada chave interativamente (sem exibir na tela)
+2. Gerar senhas internas aleatórias automaticamente
+3. Fazer deploy do backend, bot e dashboard
+4. Exibir as URLs finais
 
-```bash
-python -m uvicorn app.main:app --reload
-# Rodando em http://localhost:8000
-```
+Tempo estimado: 10-15 min (maioria é tempo de build no Fly.io).
 
 ---
 
-## 5. Bot
+## Etapa 4 — Testar
 
-```bash
-cd bot
-pip install -r requirements.txt
-cp .env.example .env
-```
-
-Edite `bot/.env`:
-
-```env
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-TELEGRAM_USER_ID=123456789
-BACKEND_URL=http://localhost:8000
-API_SECRET_KEY=mesma-string-do-backend
-GROQ_API_KEY=gsk_...
-```
-
-Inicie:
-
-```bash
-python main.py
-```
+1. Abra o Telegram, encontre seu bot pelo nome que escolheu
+2. Envie: `gastei 50 no mercado` — deve responder com confirmação
+3. Acesse o dashboard na URL que o script exibiu
 
 ---
 
-## 6. Dashboard
+## Personalizar a IA
 
-```bash
-cd dashboard
-npm install
-cp .env.local.example .env.local   # se não existir, crie manualmente
-```
+O arquivo `bot/services/ai.py` contém prompts com estabelecimentos do dono original. Edite a seção **"Estabelecimentos conhecidos"** para adicionar os lugares que você frequenta.
 
-Crie `dashboard/.env.local`:
-
-```env
-BACKEND_URL=http://localhost:8000
-API_SECRET_KEY=mesma-string-do-backend
-```
-
-Inicie:
-
-```bash
-npm run dev
-# Acessível em http://localhost:3000
-```
+Categorias disponíveis: `alimentacao | transporte | saude | lazer | compras | salario | investimento | assinatura | moradia | pet | miscelanea`
 
 ---
 
-## 7. Personalizar o system prompt da IA
-
-O arquivo `bot/services/ai.py` contém dois prompts hardcoded com dados pessoais do dono original. **Você precisa adaptá-los antes de usar.**
-
-Abra o arquivo e edite as duas constantes no topo:
-
-**`_SYSTEM_TPL`** — usado para interpretar mensagens de texto:
-- Substitua os estabelecimentos na seção `Estabelecimentos conhecidos:` pelos lugares que você frequenta
-- A lista de categorias disponíveis é: `alimentacao | transporte | saude | lazer | compras | salario | investimento | assinatura | moradia | pet | miscelanea`
-- A linha `{cards}` é preenchida automaticamente com os cartões cadastrados no Supabase — não altere
-
-**`_RECEIPT_TPL`** — usado para OCR de comprovantes/fotos:
-- Mais genérico, normalmente não precisa de grandes alterações
-
-Exemplo da seção a editar:
-```python
-Estabelecimentos conhecidos:
-alimentacao: McDonald's, Subway, iFood
-transporte: Uber, 99
-assinatura: Spotify, Netflix, Amazon Prime
-# ... adicione os seus
-```
-
-Os cartões (`{cards}`) são carregados dinamicamente do banco — cadastre-os pelo bot ou dashboard após subir o sistema.
-
----
-
-## Uso básico
-
-Com os três serviços rodando, abra o Telegram e fale com o seu bot:
-
-- Mande um texto descrevendo um gasto: `"Gastei 45 reais no almoço"`
-- Mande uma foto de nota fiscal/recibo para lançamento automático
-- Use os comandos do bot para ver saldos, metas e resumos
-- Acesse `http://localhost:3000` para o dashboard completo
-
-O bot manda um resumo financeiro diário automaticamente às 8h (horário de Brasília).
-
----
-
-## Variáveis — resumo rápido
+## Referência de variáveis
 
 | Variável | Onde pegar |
-|---|---|
-| `SUPABASE_URL` | Supabase > Project Settings > API |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase > Project Settings > API |
+|----------|-----------|
+| `SUPABASE_URL` | Supabase → Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API |
 | `TELEGRAM_BOT_TOKEN` | @BotFather no Telegram |
-| `TELEGRAM_USER_ID` | @userinfobot no Telegram |
+| `TELEGRAM_USER_IDS` | @userinfobot no Telegram |
 | `GROQ_API_KEY` | console.groq.com |
-| `API_SECRET_KEY` | Você mesmo — qualquer string segura, igual nos três serviços |
+| `API_SECRET_KEY` | Gerado automaticamente pelo script |
+| `SESSION_SECRET` | Gerado automaticamente pelo script |
+| `DASHBOARD_PASSWORD` | Você escolhe durante o script |
