@@ -1,0 +1,15 @@
+app = "finance-tutur-bot"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile.bot"
+
+[env]
+  BACKEND_URL = "https://finance-tutur-backend.fly.dev"
+
+# Sem [[services]] pois o bot é um worker, não expõe porta HTTP
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

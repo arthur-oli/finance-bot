@@ -1,0 +1,32 @@
+app = "finance-tutur-backend"
+primary_region = "gru"
+
+[build]
+
+[env]
+  ALLOWED_ORIGINS = "http://localhost:3000"
+  SCHEDULER_TIMEZONE = "America/Sao_Paulo"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8000
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
