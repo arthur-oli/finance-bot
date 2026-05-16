@@ -140,39 +140,68 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     def _page_welcome(self):
         p = tk.Frame(self, bg=BG)
-        self._header(p, "Setup Wizard",
-                     "Configure e faça deploy do bot em cloud — sem precisar de terminal")
+
+        body = tk.Frame(p, bg=BG)
+        body.pack(fill="both", expand=True)
+
+        tk.Label(body, text="💰", bg=BG, font=(FONT, 64)).pack(pady=(60, 8))
+        tk.Label(body, text="Finance Bot", bg=BG, fg=TEXT,
+                 font=(FONT, 28, "bold")).pack()
+        tk.Label(body, text="Setup Wizard", bg=BG, fg=SUBTEXT,
+                 font=(FONT, 13)).pack(pady=(4, 0))
+
+        self._footer(p, [
+            lambda f: self._btn(f, "Iniciar →",
+                                lambda: self._show(self._page_accounts), primary=True),
+        ])
+        return p
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Page 1b — Create accounts
+    # ══════════════════════════════════════════════════════════════════════════
+    def _page_accounts(self):
+        import webbrowser
+        p = tk.Frame(self, bg=BG)
+        self._header(p, "Criar contas",
+                     "Crie uma conta gratuita em cada serviço abaixo antes de continuar")
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=28)
 
-        tk.Label(body, text="O que este wizard vai fazer:", bg=BG, fg=TEXT,
-                 font=(FONT, 10, "bold")).pack(anchor="w", pady=(4, 6))
+        providers = [
+            ("🗄️  Supabase",     "Banco de dados",            "https://supabase.com"),
+            ("✈️  Fly.io",        "Hospedagem do bot e API",   "https://fly.io"),
+            ("▲  Vercel",         "Hospedagem do dashboard",   "https://vercel.com"),
+            ("🤖  Groq",          "Inteligência artificial",   "https://console.groq.com"),
+            ("💬  Telegram",      "Criar o bot (@BotFather)",  "https://t.me/BotFather"),
+        ]
 
-        for num, desc in [
-            ("1", "Instalar flyctl e Node.js automaticamente (se necessário)"),
-            ("2", "Fazer login no Fly.io e Vercel via navegador"),
-            ("3", "Coletar suas chaves e tokens"),
-            ("4", "Deploy do backend no Fly.io"),
-            ("5", "Deploy do bot no Fly.io"),
-            ("6", "Deploy do dashboard no Vercel"),
-        ]:
-            row = tk.Frame(body, bg=BG)
-            row.pack(anchor="w", pady=1)
-            tk.Label(row, text=f"  {num}.", bg=BG, fg=BLUE,
-                     font=(FONT, 10, "bold"), width=4).pack(side="left")
-            tk.Label(row, text=desc, bg=BG, fg=SUBTEXT, font=(FONT, 10)).pack(side="left")
+        for icon_label, desc, url in providers:
+            row = tk.Frame(body, bg=PANEL, pady=10, padx=16)
+            row.pack(fill="x", pady=4)
+
+            info = tk.Frame(row, bg=PANEL)
+            info.pack(side="left", fill="x", expand=True)
+            tk.Label(info, text=icon_label, bg=PANEL, fg=TEXT,
+                     font=(FONT, 11, "bold")).pack(anchor="w")
+            tk.Label(info, text=desc, bg=PANEL, fg=SUBTEXT,
+                     font=(FONT, 9)).pack(anchor="w")
+
+            tk.Button(row, text="Abrir site →",
+                      command=lambda u=url: webbrowser.open(u),
+                      bg=BLUE, fg="white", activebackground=BLUE, activeforeground="white",
+                      relief="flat", font=(FONT, 9, "bold"),
+                      padx=12, pady=5, cursor="hand2").pack(side="right", padx=4)
 
         tk.Label(body,
-                 text="\nAntes de continuar, crie suas contas (gratuitas) em:\n"
-                      "  • supabase.com      • fly.io      • vercel.com\n"
-                      "  • console.groq.com  • Telegram @BotFather\n\n"
-                      "Consulte SETUP.md para o passo a passo de cada conta.",
-                 bg=BG, fg=SUBTEXT, font=(FONT, 9), justify="left").pack(anchor="w", pady=12)
+                 text="Fly.io pede cartão de crédito no cadastro, mas não cobra dentro do plano gratuito.",
+                 bg=BG, fg=SUBTEXT, font=(FONT, 8)).pack(anchor="w", pady=(10, 0))
 
         self._footer(p, [
-            lambda f: self._btn(f, "Começar →",
+            lambda f: self._btn(f, "Já criei todas →",
                                 lambda: self._show(self._page_prereqs), primary=True),
+        ], left_btns=[
+            lambda f: self._btn(f, "← Voltar", lambda: self._show(self._page_welcome)),
         ])
         return p
 
@@ -288,9 +317,15 @@ class Wizard(tk.Tk):
 
         # ── Fly.io login ──────────────────────────────────────────────────────
         def _login_fly(log_fn):
-            log_fn("Abrindo navegador para login no Fly.io…")
-            subprocess.run(["fly", "auth", "login"], creationflags=0)
-            log_fn("Login concluído (feche o navegador se ainda estiver aberto).", "ok")
+            log_fn("Abrindo janela de terminal para login no Fly.io…")
+            log_fn("Complete o login e FECHE a janela preta quando terminar.")
+            proc = subprocess.Popen(
+                ["cmd.exe", "/k",
+                 "fly auth login && echo. && echo Login concluido! Pode fechar esta janela."],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+            proc.wait()
+            log_fn("Verificando login…")
 
         _make_row("Fly.io — login",
                   lambda: _check(["fly", "auth", "whoami"]),
@@ -298,9 +333,15 @@ class Wizard(tk.Tk):
 
         # ── Vercel login ──────────────────────────────────────────────────────
         def _login_vercel(log_fn):
-            log_fn("Abrindo navegador para login no Vercel…")
-            subprocess.run(["npx", "vercel", "login"], creationflags=0)
-            log_fn("Login concluído.", "ok")
+            log_fn("Abrindo janela de terminal para login no Vercel…")
+            log_fn("Escolha o método (GitHub recomendado) e FECHE a janela preta quando terminar.")
+            proc = subprocess.Popen(
+                ["cmd.exe", "/k",
+                 "npx vercel login && echo. && echo Login concluido! Pode fechar esta janela."],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+            proc.wait()
+            log_fn("Verificando login…")
 
         _make_row("Vercel — login",
                   lambda: _check(["npx", "vercel", "whoami"]),
@@ -329,7 +370,7 @@ class Wizard(tk.Tk):
                                 primary=True, state="disabled") if not (
                 lambda b: next_btn_holder.__setitem__(0, b) or b)(None) else None,
         ], left_btns=[
-            lambda f: self._btn(f, "← Voltar", lambda: self._show(self._page_welcome)),
+            lambda f: self._btn(f, "← Voltar", lambda: self._show(self._page_accounts)),
         ])
 
         # find the Continuar button after footer renders
