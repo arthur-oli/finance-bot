@@ -1,5 +1,4 @@
 import os
-import re
 from datetime import date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
@@ -20,27 +19,14 @@ def _fmt_brl(v) -> str:
 
 
 def _cards_for_sender(cards: list[dict], first_name: str, text: str = "") -> list[dict]:
-    # Menção explícita ao cartão do outro → mostra tudo
-    if re.search(r"\bdeb(?:orah)?\b", text, re.IGNORECASE) or re.search(r"\bart(?:hur)?\b", text, re.IGNORECASE):
-        return cards
-    n = first_name.lower()
-    if "arthur" in n:
-        my_owner, my_suffix, other_suffix = "Arthur", " Art", " Deb"
-    elif "deb" in n:
-        my_owner, my_suffix, other_suffix = "Deborah", " Deb", " Art"
-    else:
-        return [c for c in cards if not c.get("owner") and not c["name"].endswith((" Art", " Deb"))]
-
-    def is_mine(c: dict) -> bool:
-        owner = c.get("owner")
-        if owner:
-            return owner == my_owner
-        # fallback: legacy name suffix
-        if c["name"].endswith(other_suffix):
-            return False
-        return True  # own suffix or shared (no suffix)
-
-    return [c for c in cards if is_mine(c)]
+    owners = {c["owner"] for c in cards if c.get("owner")}
+    name_lower = first_name.lower()
+    # If text explicitly mentions another user's owner name → show all cards
+    for owner in owners:
+        if owner.lower() != name_lower and owner.lower() in text.lower():
+            return cards
+    # Return cards owned by this user or shared (no owner set)
+    return [c for c in cards if not c.get("owner") or c["owner"].lower() == name_lower]
 
 
 async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):

@@ -2,6 +2,7 @@ import base64
 import io
 import os
 import json
+import time
 from datetime import date, timedelta
 
 import httpx
@@ -15,53 +16,106 @@ _BASE = "https://api.groq.com/openai/v1/chat/completions"
 _MODEL_TEXT = "llama-3.3-70b-versatile"
 _MODEL_VISION = "meta-llama/llama-4-scout-17b-16e-instruct"
 
-MAX_TEXT_LEN = 500  # chars sent to LLM — limits prompt injection surface
+MAX_TEXT_LEN = 500
 
-_VALID_CATEGORIES = frozenset({
+# ── Config cache ──────────────────────────────────────────────────────────────
+_CONFIG_CACHE: dict | None = None
+_CONFIG_TS: float = 0
+_CONFIG_TTL = 300  # 5 minutes
+
+_DEFAULT_CATEGORIES = [
     "alimentacao", "transporte", "saude", "lazer", "compras",
     "salario", "investimento", "assinatura", "moradia", "pet",
     "mercado", "vestuario", "cosmeticos", "presentes", "miscelanea",
-})
+]
 
-_SYSTEM_TPL = """Assistente financeiro pessoal. Extraia uma transação da mensagem e retorne APENAS JSON válido:
-{{"type":"income|expense","amount":0.0,"category":"alimentacao|transporte|saude|lazer|compras|salario|investimento|assinatura|moradia|pet|mercado|vestuario|cosmeticos|presentes|miscelanea","description":"texto curto","date":"YYYY-MM-DD","card":null}}
-"card" = nome exato do cartão quando mencionado, ou null. Palavras "pix", "débito", "conta" sem outro cartão → "Nubank Conta".
-Se não identificar transação: {{"error":"motivo"}}
+_DEFAULT_ESTABLISHMENTS: dict[str, list[str]] = {}
 
-Estabelecimentos conhecidos:
-alimentacao: Expresso Move, Market4U, Guiju, Hati Pastel, Mafalda Bistro, Sodexo, iFood/Ifd*, Portão Point
-mercado: Dalpar, Condor (supermercados — compras mistas de alimentação e não-alimentares)
-transporte: Uber, 99
-assinatura: Spotify, Claude.ai, Amazon Prime, TIM Pós, iFood Club
-moradia: condomínio, COPEL, energia elétrica, aluguel, água, gás, SANEPAR, luz, internet débito automático
-saude: Pague Menos
-pet: Petlove, Petlove Saúde, Rei dos Animais, Flexipet, pet shop, ração, veterinário
-lazer: Factory Games, hotel
 
-Cartões: {cards}"""
+def _get_config() -> dict:
+    global _CONFIG_CACHE, _CONFIG_TS
+    now = time.time()
+    if _CONFIG_CACHE is None or now - _CONFIG_TS > _CONFIG_TTL:
+        try:
+            from bot.services.backend_client import get_bot_config
+            _CONFIG_CACHE = get_bot_config()
+            _CONFIG_TS = now
+        except Exception:
+            if _CONFIG_CACHE is None:
+                _CONFIG_CACHE = {}
+    return _CONFIG_CACHE
 
-_RECEIPT_TPL = """Especialista em OCR de comprovantes financeiros.
 
-Para comprovantes de supermercado/mercado (Dalpar, Condor, Carrefour, Extra, Atacadão, etc.), leia cada item listado e retorne um ARRAY JSON separando os valores por categoria:
-- "alimentacao": alimentos, bebidas, hortifrúti, laticínios, carnes, padaria, congelados, temperos, snacks
-- "mercado": limpeza, higiene pessoal, utilidades domésticas, pet food, outros não-alimentares
-- "cosmeticos": cosméticos, perfumaria, maquiagem, cuidados com a pele/cabelo
-- "vestuario": roupas, calçados, acessórios de moda
-Inclua somente as categorias que tiverem itens. Os valores devem somar ao total do comprovante.
+def _active_categories() -> list[str]:
+    return _get_config().get("active_categories") or _DEFAULT_CATEGORIES
 
-Para outros estabelecimentos, retorne um único objeto JSON.
 
-Formato de cada objeto:
-{{"type":"income|expense","amount":0.0,"category":"alimentacao|transporte|saude|lazer|compras|salario|investimento|assinatura|moradia|pet|mercado|vestuario|cosmeticos|presentes|miscelanea","description":"estabelecimento — categoria","date":"YYYY-MM-DD","card":null}}
-
-"card" = nome exato do cartão se identificável no comprovante, ou null.
-Se não conseguir ler: {{"error":"motivo"}}
-
-Cartões: {cards}"""
+def _valid_categories() -> frozenset[str]:
+    return frozenset(_active_categories())
 
 
 def _cards_str(cards: list[dict]) -> str:
     return ", ".join(c["name"] for c in cards) if cards else "nenhum"
+
+
+def _build_system_prompt(cards: list[dict]) -> str:
+    cfg = _get_config()
+    cats = _active_categories()
+    cat_str = "|".join(cats)
+    establishments: dict[str, list[str]] = cfg.get("establishments") or _DEFAULT_ESTABLISHMENTS
+    pix_card: str = cfg.get("default_pix_card") or ""
+    extra: str = cfg.get("additional_system_prompt") or ""
+
+    est_lines = [
+        f"{cat}: {', '.join(places)}"
+        for cat, places in establishments.items()
+        if places and cat in cats
+    ]
+    est_section = "\n".join(est_lines) if est_lines else ""
+
+    pix_line = f' Palavras "pix", "débito", "conta" sem outro cartão → "{pix_card}".' if pix_card else ""
+    prompt = (
+        f'Assistente financeiro pessoal. Extraia uma transação da mensagem e retorne APENAS JSON válido:\n'
+        f'{{"type":"income|expense","amount":0.0,"category":"{cat_str}","description":"texto curto","date":"YYYY-MM-DD","card":null}}\n'
+        f'"card" = nome exato do cartão quando mencionado, ou null.{pix_line}\n'
+        f'Se não identificar transação: {{"error":"motivo"}}'
+    )
+    if est_section:
+        prompt += f"\n\nEstabelecimentos conhecidos:\n{est_section}"
+    prompt += f"\n\nCartões: {_cards_str(cards)}"
+    if extra:
+        prompt += f"\n\n{extra}"
+    return prompt
+
+
+def _build_receipt_prompt(cards: list[dict]) -> str:
+    cfg = _get_config()
+    cats = _active_categories()
+    cat_str = "|".join(cats)
+    detail_markets: list[str] = cfg.get("detail_markets") or []
+    extra: str = cfg.get("additional_system_prompt") or ""
+
+    markets_str = ", ".join(detail_markets) if detail_markets else "supermercados"
+
+    prompt = (
+        f"Especialista em OCR de comprovantes financeiros.\n\n"
+        f"Para comprovantes de supermercado/mercado ({markets_str}, Carrefour, Extra, Atacadão, etc.), "
+        f"leia cada item listado e retorne um ARRAY JSON separando os valores por categoria:\n"
+        f'- "alimentacao": alimentos, bebidas, hortifrúti, laticínios, carnes, padaria, congelados, temperos, snacks\n'
+        f'- "mercado": limpeza, higiene pessoal, utilidades domésticas, pet food, outros não-alimentares\n'
+        f'- "cosmeticos": cosméticos, perfumaria, maquiagem, cuidados com a pele/cabelo\n'
+        f'- "vestuario": roupas, calçados, acessórios de moda\n'
+        f"Inclua somente as categorias que tiverem itens. Os valores devem somar ao total do comprovante.\n\n"
+        f"Para outros estabelecimentos, retorne um único objeto JSON.\n\n"
+        f"Formato de cada objeto:\n"
+        f'{{"type":"income|expense","amount":0.0,"category":"{cat_str}","description":"estabelecimento — categoria","date":"YYYY-MM-DD","card":null}}\n\n'
+        f'"card" = nome exato do cartão se identificável no comprovante, ou null.\n'
+        f'Se não conseguir ler: {{"error":"motivo"}}\n\n'
+        f"Cartões: {_cards_str(cards)}"
+    )
+    if extra:
+        prompt += f"\n\n{extra}"
+    return prompt
 
 
 def _resolve_card(card_name: str | None, cards: list[dict]) -> str | None:
@@ -94,16 +148,12 @@ def _call(model: str, system: str, messages: list) -> dict:
 
 
 def validate_transaction(data: dict) -> dict:
-    """Validate and sanitize a transaction dict from LLM output.
-    Raises ValueError with a human-readable message if invalid.
-    """
+    """Validate and sanitize a transaction dict from LLM output."""
     errors: list[str] = []
 
-    # type
     if data.get("type") not in ("income", "expense"):
         errors.append(f"tipo inválido: {data.get('type')!r}")
 
-    # amount
     try:
         amount = float(data["amount"])
         if amount <= 0:
@@ -115,19 +165,16 @@ def validate_transaction(data: dict) -> dict:
     except (KeyError, TypeError, ValueError):
         errors.append("valor não é um número válido")
 
-    # category
     cat = data.get("category", "")
-    if cat not in _VALID_CATEGORIES:
+    if cat not in _valid_categories():
         errors.append(f"categoria inválida: {cat!r}")
 
-    # description
     desc = str(data.get("description", "")).strip()
     if not desc:
         errors.append("descrição vazia")
     else:
         data["description"] = desc[:200]
 
-    # date — clamp instead of reject to avoid user friction
     date_str = data.get("date", "")
     try:
         tx_date = date.fromisoformat(str(date_str))
@@ -147,7 +194,7 @@ def validate_transaction(data: dict) -> dict:
 
 def interpret_text(text: str, cards: list[dict] | None = None) -> dict:
     cards = cards or []
-    system = _SYSTEM_TPL.format(cards=_cards_str(cards))
+    system = _build_system_prompt(cards)
     today = str(date.today())
     safe_text = text[:MAX_TEXT_LEN]
     result = _call(_MODEL_TEXT, system, [{"role": "user", "content": f"Data de hoje: {today}\n\n{safe_text}"}])
@@ -158,7 +205,7 @@ def interpret_text(text: str, cards: list[dict] | None = None) -> dict:
 
 def interpret_image(image_bytes: bytes, cards: list[dict] | None = None, caption: str = "", mime_type: str = "image/jpeg") -> dict | list:
     cards = cards or []
-    system = _RECEIPT_TPL.format(cards=_cards_str(cards))
+    system = _build_receipt_prompt(cards)
     today = str(date.today())
     img = Image.open(io.BytesIO(image_bytes))
     buf = io.BytesIO()

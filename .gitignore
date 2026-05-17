@@ -28,5 +28,8 @@ dashboard/tsconfig.tsbuildinfo
 dist/
 build/
 *.spec
-FinanceBotSetup.spec
 dashboard/.vercel/
+
+# Ferramentas locais de desenvolvimento (tools/)
+tools/generate_workflow.py
+tools/workflow.png

@@ -79,6 +79,13 @@ def list_cards() -> list[dict]:
         return res.json()
 
 
+def get_bot_config() -> dict:
+    with _client() as c:
+        res = c.get("/api/settings/")
+        res.raise_for_status()
+        return res.json()
+
+
 def list_transactions(start: date | None = None, end: date | None = None, limit: int = 10) -> dict:
     params: dict = {"limit": limit}
     if start:

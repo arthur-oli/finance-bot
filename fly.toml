@@ -1,11 +1,11 @@
-app = "finance-tutur-bot"
+app = "your-finance-bot-name"
 primary_region = "gru"
 
 [build]
   dockerfile = "Dockerfile.bot"
 
 [env]
-  BACKEND_URL = "https://finance-tutur-backend.fly.dev"
+  BACKEND_URL = "https://your-finance-backend-name.fly.dev"
 
 # Sem [[services]] pois o bot é um worker, não expõe porta HTTP
 

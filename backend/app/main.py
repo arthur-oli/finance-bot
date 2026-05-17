@@ -13,7 +13,7 @@ from slowapi.util import get_remote_address
 
 load_dotenv()
 
-from app.routers import analytics, cards, forecast, goals, settings, subscriptions, transactions
+from app.routers import analytics, cards, forecast, goals, settings, subscriptions, transactions, users
 from app.scheduler.jobs import start_scheduler
 
 structlog.configure(
@@ -65,6 +65,7 @@ app.include_router(goals.router, prefix="/api/goals", tags=["goals"])
 app.include_router(forecast.router, prefix="/api/forecast", tags=["forecast"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
+app.include_router(users.router, prefix="/api/users", tags=["users"])
 
 
 @app.get("/health")

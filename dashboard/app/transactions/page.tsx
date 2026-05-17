@@ -136,7 +136,12 @@ function TransactionsContent() {
     queryFn: () => api.get("/api/cards/"),
   });
 
-  const defaultCardId = cards?.find(c => c.name === "Nubank Conta")?.id ?? cards?.[0]?.id ?? "";
+  const defaultCardId = cards?.[0]?.id ?? "";
+
+  const { data: users } = useQuery<string[]>({
+    queryKey: ["users"],
+    queryFn: () => api.get("/api/users/"),
+  });
 
   const [form, setForm] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
@@ -343,8 +348,7 @@ function TransactionsContent() {
               <select value={filterUser} onChange={e => setFilterUser(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-200">
                 <option value="">Todos</option>
-                <option value="Arthur">Arthur</option>
-                <option value="Deborah">Deborah</option>
+                {users?.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
             <div className="flex gap-2 pt-1">
@@ -392,8 +396,7 @@ function TransactionsContent() {
         <select value={filterUser} onChange={e => setFilterUser(e.target.value)}
           className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200">
           <option value="">Todos os usuários</option>
-          <option value="Arthur">Arthur</option>
-          <option value="Deborah">Deborah</option>
+          {users?.map(u => <option key={u} value={u}>{u}</option>)}
         </select>
         {(filterCategory || filterCard || filterType || filterUser) && (
           <button onClick={() => { setFilterCategory(""); setFilterCard(""); setFilterType(""); setFilterUser(""); }}

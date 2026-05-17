@@ -4,18 +4,9 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import type { Card } from "@/lib/types";
 
-type Owner = "Arthur" | "Deborah" | "Compartilhado";
-
-function getOwner(c: Card): Owner {
-  if (c.owner === "Arthur") return "Arthur";
-  if (c.owner === "Deborah") return "Deborah";
-  // fallback to name suffix for legacy cards without owner field
-  if (c.name.endsWith(" Art")) return "Arthur";
-  if (c.name.endsWith(" Deb")) return "Deborah";
-  return "Compartilhado";
+function getOwner(c: Card): string {
+  return c.owner || "Compartilhado";
 }
-
-const OWNER_ORDER: Owner[] = ["Arthur", "Deborah", "Compartilhado"];
 
 const EMPTY_FORM = { name: "", type: "credit" as "credit" | "debit", card_limit: "", closing_day: "", due_day: "", owner: "" };
 
@@ -85,7 +76,10 @@ export default function CardsPage() {
     update.mutate({ id: editingId, body });
   }
 
-  const grouped = OWNER_ORDER
+  const ownerOrder = [...new Set((cards ?? []).map(getOwner))].sort((a, b) =>
+    a === "Compartilhado" ? 1 : b === "Compartilhado" ? -1 : a.localeCompare(b)
+  );
+  const grouped = ownerOrder
     .map((owner) => ({ owner, cards: (cards ?? []).filter((c) => getOwner(c) === owner) }))
     .filter((g) => g.cards.length > 0);
 
@@ -112,12 +106,9 @@ export default function CardsPage() {
             <option value="credit">Crédito</option>
             <option value="debit">Débito</option>
           </select>
-          <select value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })}
-            className="bg-gray-800 rounded-lg px-3 py-2 text-sm">
-            <option value="">Compartilhado</option>
-            <option value="Arthur">Arthur</option>
-            <option value="Deborah">Deborah</option>
-          </select>
+          <input placeholder="Dono (deixe vazio = compartilhado)" value={form.owner}
+            onChange={(e) => setForm({ ...form, owner: e.target.value })}
+            className="bg-gray-800 rounded-lg px-3 py-2 text-sm" />
           <input type="number" placeholder="Limite (opcional)" value={form.card_limit}
             onChange={(e) => setForm({ ...form, card_limit: e.target.value })}
             className="bg-gray-800 rounded-lg px-3 py-2 text-sm" />
@@ -151,12 +142,9 @@ export default function CardsPage() {
                         <option value="credit">Crédito</option>
                         <option value="debit">Débito</option>
                       </select>
-                      <select value={editForm.owner} onChange={(e) => setEditForm({ ...editForm, owner: e.target.value })}
-                        className={input}>
-                        <option value="">Compartilhado</option>
-                        <option value="Arthur">Arthur</option>
-                        <option value="Deborah">Deborah</option>
-                      </select>
+                      <input placeholder="Dono (vazio = compartilhado)" value={editForm.owner}
+                        onChange={(e) => setEditForm({ ...editForm, owner: e.target.value })}
+                        className={input} />
                       <input type="number" placeholder="Limite" value={editForm.card_limit}
                         onChange={(e) => setEditForm({ ...editForm, card_limit: e.target.value })}
                         className={input} />

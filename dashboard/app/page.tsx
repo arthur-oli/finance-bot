@@ -95,7 +95,7 @@ export default function HomePage() {
     if (!monthTxData?.items.length) return [];
     const map: Record<string, { income: number; expenses: number }> = {};
     for (const tx of monthTxData.items) {
-      const name = (tx.user ?? "—").replace("Débora", "Deborah");
+      const name = tx.user ?? "—";
       if (!map[name]) map[name] = { income: 0, expenses: 0 };
       if (tx.type === "income") map[name].income += tx.amount;
       else map[name].expenses += tx.amount;

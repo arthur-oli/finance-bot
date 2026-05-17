@@ -86,4 +86,9 @@ export interface AnalyticsResponse {
 export interface Settings {
   base_balance: number;
   scheduler_timezone: string;
+  active_categories: string[];
+  establishments: Record<string, string[]>;
+  detail_markets: string[];
+  default_pix_card: string;
+  additional_system_prompt: string;
 }

@@ -1,4 +1,4 @@
-app = "finance-tutur-backend"
+app = "your-finance-backend-name"
 primary_region = "gru"
 
 [build]
