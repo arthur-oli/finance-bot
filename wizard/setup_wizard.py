@@ -151,10 +151,7 @@ class Wizard(tk.Tk):
         self.resizable(False, False)
         self.configure(bg=BG)
         try:
-            _logo_img = Image.open(_asset("finance-bot-logo.png")).convert("RGBA")
-            _tk_icon = ImageTk.PhotoImage(_logo_img.resize((256, 256), Image.LANCZOS))
-            self.iconphoto(True, _tk_icon)
-            self._icon_ref = _tk_icon
+            self.iconbitmap(_asset("icon.ico"))
         except Exception:
             pass
         self._frame = None
@@ -1165,7 +1162,11 @@ class Wizard(tk.Tk):
         try:
             _qr_raw = Image.open(_asset("qr_botfather.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
-            _qr_tk = ImageTk.PhotoImage(_qr_raw)
+            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
+            _ox = (130 - _qr_raw.width) // 2
+            _oy = (130 - _qr_raw.height) // 2
+            _canvas.paste(_qr_raw, (_ox, _oy))
+            _qr_tk = ImageTk.PhotoImage(_canvas)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
             lbl.image = _qr_tk
             lbl.pack()
@@ -1254,7 +1255,11 @@ class Wizard(tk.Tk):
         try:
             _qr_raw = Image.open(_asset("qr_userinfobot.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
-            _qr_tk = ImageTk.PhotoImage(_qr_raw)
+            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
+            _ox = (130 - _qr_raw.width) // 2
+            _oy = (130 - _qr_raw.height) // 2
+            _canvas.paste(_qr_raw, (_ox, _oy))
+            _qr_tk = ImageTk.PhotoImage(_canvas)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
             lbl.image = _qr_tk
             lbl.pack()
