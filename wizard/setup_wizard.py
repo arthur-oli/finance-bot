@@ -1165,11 +1165,7 @@ class Wizard(tk.Tk):
         try:
             _qr_raw = Image.open(_asset("qr_botfather.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
-            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
-            _ox = (130 - _qr_raw.width) // 2
-            _oy = (130 - _qr_raw.height) // 2
-            _canvas.paste(_qr_raw, (_ox, _oy))
-            _qr_tk = ImageTk.PhotoImage(_canvas)
+            _qr_tk = ImageTk.PhotoImage(_qr_raw)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
             lbl.image = _qr_tk
             lbl.pack()
@@ -1258,11 +1254,7 @@ class Wizard(tk.Tk):
         try:
             _qr_raw = Image.open(_asset("qr_userinfobot.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
-            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
-            _ox = (130 - _qr_raw.width) // 2
-            _oy = (130 - _qr_raw.height) // 2
-            _canvas.paste(_qr_raw, (_ox, _oy))
-            _qr_tk = ImageTk.PhotoImage(_canvas)
+            _qr_tk = ImageTk.PhotoImage(_qr_raw)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
             lbl.image = _qr_tk
             lbl.pack()
