@@ -163,6 +163,12 @@ class Wizard(tk.Tk):
         self._vars  = {}   # StringVar per field key
         self._info  = {}   # misc runtime info (login emails, etc.)
         if DEMO:
+            _demo_bar = tk.Frame(self, bg="#7c3aed", height=22)
+            _demo_bar.pack(side="bottom", fill="x")
+            _demo_bar.pack_propagate(False)
+            tk.Label(_demo_bar, text="VERSÃO DEMO — não preencher dados reais",
+                     bg="#7c3aed", fg="white", font=(FONT, 8, "bold")).pack(expand=True)
+        if DEMO:
             self._prefill_demo()
             _pages = {
                 "welcome":          self._page_welcome,
@@ -170,7 +176,6 @@ class Wizard(tk.Tk):
                 "clone":            self._page_clone,
                 "supabase":         self._page_supabase,
                 "supabase_keys":    self._page_supabase_keys,
-                "supabase_sql":     self._page_supabase_sql,
                 "telegram":         self._page_telegram_bot,
                 "telegram_id":      self._page_telegram_id,
                 "groq":             self._page_groq,
@@ -800,9 +805,10 @@ class Wizard(tk.Tk):
         self._header(p, "Baixando o Finance Bot",
                      "Escolha onde instalar — vamos buscar a versão mais recente.", phase=0)
 
+        _clone_next = (lambda: self._show(self._page_supabase)) if DEMO else (lambda: None)
         nb = self._footer(p,
                           back_fn=lambda: self._show(self._page_prereqs),
-                          next_fn=lambda: None,
+                          next_fn=_clone_next,
                           next_label="Baixar e instalar  →",
                           next_enabled=False)
 
@@ -938,6 +944,9 @@ class Wizard(tk.Tk):
 
             threading.Thread(target=_thread, daemon=True).start()
 
+        if DEMO:
+            nb.config(command=lambda: self._show(self._page_supabase))
+            return p
         path_var.trace_add("write", _validate)
         nb.config(command=_do_clone)
         _validate()
@@ -1039,7 +1048,7 @@ class Wizard(tk.Tk):
 
         nb = self._footer(p,
                           back_fn=lambda: self._show(self._page_supabase),
-                          next_fn=lambda: self._show(self._page_supabase_sql),
+                          next_fn=lambda: self._show(self._page_telegram_bot),
                           next_enabled=False)
 
         def _refresh_nb(*_):
@@ -1086,34 +1095,6 @@ class Wizard(tk.Tk):
         return p
 
     # ══════════════════════════════════════════════════════════════════════════
-    # Tela 2c — Supabase: Executar SQL
-    # ══════════════════════════════════════════════════════════════════════════
-    def _page_supabase_sql(self):
-        p = tk.Frame(self, bg=BG)
-        self._header(p, "Supabase — tabelas automáticas",
-                     "Não é necessária nenhuma ação manual.",
-                     phase=1, provider_idx=0)
-
-        self._footer(p,
-                     back_fn=lambda: self._show(self._page_supabase_keys),
-                     next_fn=lambda: self._show(self._page_telegram_bot))
-
-        body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
-
-        info = tk.Frame(body, bg=PANEL, pady=20, padx=20)
-        info.pack(fill="x")
-
-        tk.Label(info, text="✅  Tudo certo!", bg=PANEL, fg=GREEN,
-                 font=(FONT, 14, "bold")).pack(anchor="w")
-        tk.Label(info,
-                 text="Quando o servidor iniciar pela primeira vez,\n"
-                      "as tabelas serão criadas automaticamente no seu banco.\n\n"
-                      "Você não precisa abrir o SQL Editor nem colar nenhum código.",
-                 bg=PANEL, fg=MUTED, font=(FONT, 10), justify="left").pack(anchor="w", pady=(8, 0))
-
-        return p
-
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 3a — Telegram: criar bot
     # ══════════════════════════════════════════════════════════════════════════
@@ -1247,6 +1228,7 @@ class Wizard(tk.Tk):
             ("1.", "Abra o @userinfobot no Telegram, ou procure no aplicativo de celular", "https://t.me/userinfobot", "Abrir userinfobot"),
             ("2.", "Envie qualquer mensagem ou clique em  START", None, None),
             ("3.", "Ele vai te responder com seu ID numérico — copie e cole abaixo", None, None),
+            ("4.", "Repita para todos os usuários que devem ter acesso ao bot", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
             row.pack(anchor="w", pady=2, fill="x")
@@ -1550,7 +1532,7 @@ class Wizard(tk.Tk):
                  text="🔐  Use uma senha segura e guarde-a em local seguro.",
                  bg=PANEL, fg=TEXT, font=(FONT, 10, "bold")).pack(anchor="w")
         tk.Label(note,
-                 text="Você vai precisar dela toda vez que acessar o painel. Não há recuperação automática.",
+                 text="Você vai precisar dela quando acessar o painel, de tempos em tempos. Não há recuperação automática.",
                  bg=PANEL, fg=DIM, font=(FONT, 9), wraplength=640, justify="left").pack(anchor="w", pady=(4, 0))
 
         # Generate button
@@ -1904,10 +1886,26 @@ class Wizard(tk.Tk):
         self._header(p, "Tudo pronto! 🎉",
                      "Seu Finance Bot está no ar.", phase=4)
 
+        _dash_url = urls.get("dashboard", "") or ("https://finance-bot-demo.vercel.app" if DEMO else "")
+        _pw = self._var("DASHBOARD_PASSWORD").get()
+
+        def _copy_pw():
+            self.clipboard_clear()
+            self.clipboard_append(_pw)
+
         self._footer(p,
-                     next_fn=lambda: webbrowser.open(urls.get("dashboard", "")) or None,
+                     next_fn=lambda: webbrowser.open(_dash_url) or None,
                      next_label="Abrir painel web  →",
-                     extra_btns=[("Fechar", self.destroy, PANEL)])
+                     extra_btns=[
+                         ("Fechar", self.destroy, PANEL),
+                         ("Copiar senha do painel", _copy_pw, PANEL2),
+                     ])
+
+        warn = tk.Frame(p, bg="#7c2d12", pady=6)
+        warn.pack(side="bottom", fill="x")
+        tk.Label(warn,
+                 text="Senha que você definiu para o painel. Armazene em local seguro. O painel pode requisitar essa senha para ser acessado de forma esporádica.",
+                 bg="#7c2d12", fg="#fed7aa", font=(FONT, 8)).pack()
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(16, 0))

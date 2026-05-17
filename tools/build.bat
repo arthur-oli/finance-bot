@@ -51,4 +51,3 @@ echo    FinanceBotUpdate.exe
 echo ============================================
 echo.
 echo Publique ambos como assets na GitHub Release correspondente.
-pause
