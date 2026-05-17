@@ -21,9 +21,15 @@ pip install pyinstaller --quiet
 echo Removendo pathlib legado ^(incompativel com PyInstaller^)...
 pip uninstall pathlib -y >nul 2>&1
 
+echo Gerando icone...
+python tools\generate_icon.py
+if not exist assets\icon.ico (
+    echo [AVISO] Icone nao gerado — build sem icone customizado.
+)
+
 echo.
 echo [1/2] Compilando FinanceBotSetup.exe ...
-pyinstaller --onefile --windowed --name "FinanceBotSetup" --clean wizard\setup_wizard.py
+pyinstaller --onefile --windowed --uac-admin --name "FinanceBotSetup" --clean --icon assets\icon.ico wizard\setup_wizard.py
 if not exist dist\FinanceBotSetup.exe (
     echo [ERRO] Build do wizard falhou. Veja o output acima.
     pause ^& exit /b 1
@@ -31,7 +37,7 @@ if not exist dist\FinanceBotSetup.exe (
 
 echo.
 echo [2/2] Compilando FinanceBotUpdate.exe ...
-pyinstaller --onefile --windowed --name "FinanceBotUpdate" --clean wizard\updater.py
+pyinstaller --onefile --windowed --uac-admin --name "FinanceBotUpdate" --clean --icon assets\icon.ico wizard\updater.py
 if not exist dist\FinanceBotUpdate.exe (
     echo [ERRO] Build do updater falhou. Veja o output acima.
     pause ^& exit /b 1

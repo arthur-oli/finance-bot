@@ -472,6 +472,7 @@ class Wizard(tk.Tk):
         all_do_fns      = []
         verified        = set()
         v_lock          = threading.Lock()
+        _winget_lock    = threading.Lock()   # serializa chamadas winget (evita conflito paralelo)
         install_all_ref = [None]   # preenchido depois, referenciado em _mark_verified
 
         def _mark_verified(chk_fn):
@@ -590,37 +591,42 @@ class Wizard(tk.Tk):
             all_do_fns.append(_do)
 
         def _inst_fly(log_fn):
-            log_fn("Instalando via winget…")
-            r = subprocess.run(
-                ["winget", "install", "-e", "--id", "Fly.flyctl",
-                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
-            if r.returncode != 0:
-                log_fn("Tentando script oficial do Fly.io…")
-                subprocess.run(["powershell", "-NoProfile", "-Command",
-                                "iwr https://fly.io/install.ps1 -useb | iex"], creationflags=0)
+            with _winget_lock:
+                log_fn("Instalando via winget…")
+                r = subprocess.run(
+                    ["winget", "install", "-e", "--id", "Fly.flyctl",
+                     "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+                    capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
+                if r.returncode != 0:
+                    log_fn("Tentando script oficial do Fly.io…")
+                    subprocess.run(
+                        ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
+                         "iwr https://fly.io/install.ps1 -useb | iex"],
+                        capture_output=True, creationflags=NO_WIN)
             log_fn("Fly CLI instalado.", "ok")
 
         def _inst_node(log_fn):
-            log_fn("Instalando Node.js via winget…")
-            subprocess.run(
-                ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS",
-                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
+            with _winget_lock:
+                log_fn("Instalando Node.js via winget…")
+                subprocess.run(
+                    ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS",
+                     "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+                    capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
             log_fn("Node.js instalado.", "ok")
 
         def _inst_git(log_fn):
-            log_fn("Instalando via winget…")
-            r = subprocess.run(
-                ["winget", "install", "-e", "--id", "Git.Git",
-                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
-            if r.returncode != 0:
-                log_fn("Tentando abrir instalador do git-scm.com…")
-                webbrowser.open("https://git-scm.com/download/win")
-                log_fn("Instale o Git e clique em Instalar agora para verificar.", "err")
-            else:
-                log_fn("Git instalado.", "ok")
+            with _winget_lock:
+                log_fn("Instalando Git via winget…")
+                r = subprocess.run(
+                    ["winget", "install", "-e", "--id", "Git.Git",
+                     "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+                    capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
+                if r.returncode != 0:
+                    log_fn("Tentando abrir instalador do git-scm.com…")
+                    webbrowser.open("https://git-scm.com/download/win")
+                    log_fn("Instale o Git e clique em Instalar agora para verificar.", "err")
+                    return
+            log_fn("Git instalado.", "ok")
 
         _make_row("Fly CLI",  "Publica o backend e o bot",
                   lambda: _check(["fly", "version"]), _inst_fly, "Instalar agora")
