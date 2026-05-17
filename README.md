@@ -1,5 +1,9 @@
 # Finance Bot
 
+<p align="center">
+  <img src="assets/finance-bot-logo.png" width="120" alt="Finance Bot">
+</p>
+
 Bot pessoal de finanças no Telegram com dashboard web. Registre gastos por mensagem ou foto de nota fiscal — a IA classifica automaticamente.
 
 Roda 100% em cloud, sem precisar deixar o PC ligado.
