@@ -12,6 +12,7 @@ import re
 import time
 import json
 import urllib.request
+from PIL import Image, ImageTk
 
 DEMO = "--demo" in sys.argv
 
@@ -34,6 +35,12 @@ BACKEND_TOML  = os.path.join(BACKEND_DIR, "fly.toml")
 SCHEMA_SQL    = os.path.join(ROOT, "schema.sql")
 if not os.path.exists(SCHEMA_SQL):
     SCHEMA_SQL = os.path.join(os.path.dirname(ROOT), "schema.sql")
+
+def _asset(name):
+    """Resolve caminho de um asset, tanto no exe frozen quanto em dev."""
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, "assets", name)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", name)
 
 # ── Distribution ──────────────────────────────────────────────────────────────
 GITHUB_REPO = "arthur-oli/finance-bot"
@@ -403,10 +410,18 @@ class Wizard(tk.Tk):
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True)
 
-        c = tk.Canvas(body, width=100, height=100, bg=BG, highlightthickness=0)
-        c.pack(pady=(52, 14))
-        c.create_oval(4, 4, 96, 96, fill="white", outline="")
-        c.create_text(50, 50, text="$", font=(FONT, 46, "bold"), fill=BG)
+        try:
+            _pil_logo = Image.open(_asset("finance-bot-logo.png")).convert("RGBA")
+            _pil_logo = _pil_logo.resize((120, 120), Image.LANCZOS)
+            _tk_logo  = ImageTk.PhotoImage(_pil_logo)
+            logo_lbl  = tk.Label(body, image=_tk_logo, bg=BG)
+            logo_lbl.image = _tk_logo   # mantém referência
+            logo_lbl.pack(pady=(44, 10))
+        except Exception:
+            c = tk.Canvas(body, width=100, height=100, bg=BG, highlightthickness=0)
+            c.pack(pady=(52, 14))
+            c.create_oval(4, 4, 96, 96, fill="white", outline="")
+            c.create_text(50, 50, text="$", font=(FONT, 46, "bold"), fill=BG)
 
         tk.Label(body, text="Finance Bot", bg=BG, fg=TEXT,
                  font=(FONT, 32, "bold")).pack()

@@ -16,7 +16,7 @@ where python >nul 2>&1 || (
 )
 
 echo Instalando dependencias de build...
-pip install pyinstaller --quiet
+pip install pyinstaller pillow --quiet
 
 echo Removendo pathlib legado ^(incompativel com PyInstaller^)...
 pip uninstall pathlib -y >nul 2>&1
@@ -29,7 +29,7 @@ if not exist assets\icon.ico (
 
 echo.
 echo [1/2] Compilando FinanceBotSetup.exe ...
-pyinstaller --onefile --windowed --uac-admin --name "FinanceBotSetup" --clean --icon assets\icon.ico wizard\setup_wizard.py
+pyinstaller --onefile --windowed --uac-admin --name "FinanceBotSetup" --clean --icon assets\icon.ico --add-data "assets\finance-bot-logo.png;assets" wizard\setup_wizard.py
 if not exist dist\FinanceBotSetup.exe (
     echo [ERRO] Build do wizard falhou. Veja o output acima.
     pause ^& exit /b 1
