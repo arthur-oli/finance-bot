@@ -6,8 +6,6 @@ import structlog
 from bot.services import backend_client as bc
 from bot.services.ai import interpret_text, validate_transaction
 
-_raw = os.environ.get("TELEGRAM_USER_IDS", os.environ.get("TELEGRAM_USER_ID", ""))
-_ALLOWED = {int(x.strip()) for x in _raw.split(",") if x.strip()}
 
 log = structlog.get_logger()
 
@@ -90,7 +88,7 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if update.effective_user.id not in _ALLOWED:
+    if update.effective_user.id not in bc.get_allowed_ids():
         return
 
     if query.data == "tx_cancel":

@@ -29,6 +29,7 @@ def get_settings() -> SettingsResponse:
     cats_raw = _get("active_categories")
     est_raw = _get("establishments")
     dm_raw = _get("detail_markets")
+    ids_raw = _get("allowed_telegram_ids")
     return SettingsResponse(
         base_balance=Decimal(_get("base_balance") or "0"),
         scheduler_timezone=_get("scheduler_timezone") or "America/Sao_Paulo",
@@ -37,6 +38,7 @@ def get_settings() -> SettingsResponse:
         detail_markets=json.loads(dm_raw) if dm_raw else [],
         default_pix_card=_get("default_pix_card") or "",
         additional_system_prompt=_get("additional_system_prompt") or "",
+        allowed_telegram_ids=json.loads(ids_raw) if ids_raw else [],
     )
 
 
@@ -55,4 +57,6 @@ def update_settings(data: SettingsUpdate) -> SettingsResponse:
         _set("default_pix_card", data.default_pix_card)
     if data.additional_system_prompt is not None:
         _set("additional_system_prompt", data.additional_system_prompt)
+    if data.allowed_telegram_ids is not None:
+        _set("allowed_telegram_ids", json.dumps(data.allowed_telegram_ids))
     return get_settings()

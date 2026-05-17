@@ -10,6 +10,7 @@ class SettingsUpdate(BaseModel):
     detail_markets: list[str] | None = None
     default_pix_card: str | None = None
     additional_system_prompt: str | None = None
+    allowed_telegram_ids: list[int] | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -20,3 +21,4 @@ class SettingsResponse(BaseModel):
     detail_markets: list[str]
     default_pix_card: str
     additional_system_prompt: str
+    allowed_telegram_ids: list[int]

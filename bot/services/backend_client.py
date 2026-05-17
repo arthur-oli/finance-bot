@@ -1,4 +1,5 @@
 import os
+import time
 from decimal import Decimal
 from datetime import date
 import httpx
@@ -84,6 +85,32 @@ def get_bot_config() -> dict:
         res = c.get("/api/settings/")
         res.raise_for_status()
         return res.json()
+
+
+_allowed_cache: tuple[frozenset[int], float] = (frozenset(), 0.0)
+_ALLOWED_TTL = 300
+
+
+def get_allowed_ids() -> frozenset[int]:
+    global _allowed_cache
+    ids, ts = _allowed_cache
+    if ids and time.time() - ts < _ALLOWED_TTL:
+        return ids
+    try:
+        config = get_bot_config()
+        id_list = config.get("allowed_telegram_ids") or []
+        if id_list:
+            new_ids = frozenset(int(x) for x in id_list)
+        else:
+            raw = os.environ.get("TELEGRAM_USER_IDS", os.environ.get("TELEGRAM_USER_ID", ""))
+            new_ids = frozenset(int(x.strip()) for x in raw.split(",") if x.strip())
+    except Exception:
+        if ids:
+            return ids
+        raw = os.environ.get("TELEGRAM_USER_IDS", os.environ.get("TELEGRAM_USER_ID", ""))
+        new_ids = frozenset(int(x.strip()) for x in raw.split(",") if x.strip())
+    _allowed_cache = (new_ids, time.time())
+    return new_ids
 
 
 def list_transactions(start: date | None = None, end: date | None = None, limit: int = 10) -> dict:
