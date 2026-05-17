@@ -151,7 +151,11 @@ class Wizard(tk.Tk):
         self.resizable(False, False)
         self.configure(bg=BG)
         try:
-            self.iconbitmap(_asset("icon.ico"))
+            _logo = Image.open(_asset("finance-bot-logo.png")).convert("RGBA")
+            _icon_imgs = [ImageTk.PhotoImage(_logo.resize((s, s), Image.LANCZOS))
+                          for s in (16, 32, 48, 64, 128, 256)]
+            self.iconphoto(True, *_icon_imgs)
+            self._icon_refs = _icon_imgs
         except Exception:
             pass
         self._frame = None
