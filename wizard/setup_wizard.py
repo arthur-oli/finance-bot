@@ -149,6 +149,17 @@ class Wizard(tk.Tk):
         self.geometry(f"{self.W}x{self.H}")
         self.resizable(False, False)
         self.configure(bg=BG)
+        try:
+            import tempfile
+            _logo_img = Image.open(_asset("finance-bot-logo.png")).convert("RGBA")
+            _ico_path = os.path.join(tempfile.gettempdir(), "financebot_icon.ico")
+            _logo_img.resize((256, 256), Image.LANCZOS).save(
+                _ico_path, format="ICO",
+                sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+            )
+            self.iconbitmap(_ico_path)
+        except Exception:
+            pass
         self._frame = None
         self._vars  = {}   # StringVar per field key
         self._info  = {}   # misc runtime info (login emails, etc.)
@@ -624,40 +635,62 @@ class Wizard(tk.Tk):
             items.append((icon, st, btn, chk_fn))
             all_do_fns.append(_do)
 
-        def _inst_fly(log_fn):
-            log_fn("Instalando via winget…")
+        def _winget_run(pkg_id, log_fn):
+            """Roda winget e loga resultado. Retorna True se sucesso."""
             r = subprocess.run(
-                ["winget", "install", "-e", "--id", "Fly.flyctl",
+                ["winget", "install", "-e", "--id", pkg_id,
                  "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
-            if r.returncode != 0:
-                log_fn("Tentando script oficial do Fly.io…")
-                subprocess.run(
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", creationflags=NO_WIN)
+            if r.returncode == 0:
+                log_fn(f"winget: concluído (código 0).", "ok")
+            else:
+                log_fn(f"winget: falhou (código {r.returncode}).", "err")
+                out = (r.stdout or "").strip()
+                if out:
+                    for line in out.splitlines()[-6:]:   # últimas 6 linhas do output
+                        log_fn(f"  {line}")
+            return r.returncode == 0
+
+        def _inst_fly(log_fn):
+            log_fn("Instalando Fly CLI via winget…")
+            ok = _winget_run("Fly.flyctl", log_fn)
+            if not ok:
+                log_fn("Método alternativo: script oficial do Fly.io…")
+                r2 = subprocess.run(
                     ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
                      "iwr https://fly.io/install.ps1 -useb | iex"],
-                    capture_output=True, creationflags=NO_WIN)
-            log_fn("Fly CLI instalado.", "ok")
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", creationflags=NO_WIN)
+                if r2.returncode == 0:
+                    log_fn("Script do Fly.io: concluído.", "ok")
+                else:
+                    log_fn(f"Script do Fly.io: falhou (código {r2.returncode}).", "err")
+                    out = (r2.stdout or "").strip()
+                    if out:
+                        for line in out.splitlines()[-6:]:
+                            log_fn(f"  {line}")
+            log_fn("Verificando Fly CLI no PATH e em locais de instalação…")
 
         def _inst_node(log_fn):
             log_fn("Instalando Node.js via winget…")
-            subprocess.run(
-                ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS",
-                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
-            log_fn("Node.js instalado.", "ok")
+            ok = _winget_run("OpenJS.NodeJS.LTS", log_fn)
+            if ok:
+                log_fn("Verificando Node.js…")
+                v = _check_output(["node", "--version"])
+                log_fn(f"node {v}" if v else "node não encontrado no PATH ainda.", "ok" if v else None)
 
         def _inst_git(log_fn):
             log_fn("Instalando Git via winget…")
-            r = subprocess.run(
-                ["winget", "install", "-e", "--id", "Git.Git",
-                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
-            if r.returncode != 0:
-                log_fn("Tentando abrir instalador do git-scm.com…")
+            ok = _winget_run("Git.Git", log_fn)
+            if not ok:
+                log_fn("Abrindo instalador manual em git-scm.com…")
                 webbrowser.open("https://git-scm.com/download/win")
-                log_fn("Instale o Git e clique em Instalar agora para verificar.", "err")
+                log_fn("Instale o Git manualmente e clique em 'Instalar agora' para verificar.", "err")
                 return
-            log_fn("Git instalado.", "ok")
+            log_fn("Verificando Git…")
+            v = _check_output(["git", "--version"])
+            log_fn(v if v else "git não encontrado no PATH ainda.", "ok" if v else None)
 
         def _chk_fly():
             # 1. Tenta pelo PATH (winget coloca lá)
