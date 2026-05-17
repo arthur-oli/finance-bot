@@ -1167,9 +1167,13 @@ class Wizard(tk.Tk):
         qr_frame = tk.Frame(top, bg=PANEL, padx=10, pady=8)
         qr_frame.pack(side="left", padx=(6, 0))
         try:
-            _qr = Image.open(_asset("bot_father_qr.png")).convert("RGBA")
-            _qr = _qr.resize((130, 130), Image.LANCZOS)
-            _qr_tk = ImageTk.PhotoImage(_qr)
+            _qr_raw = Image.open(_asset("qr_botfather.png")).convert("RGBA")
+            _qr_raw.thumbnail((130, 130), Image.LANCZOS)
+            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
+            _ox = (130 - _qr_raw.width) // 2
+            _oy = (130 - _qr_raw.height) // 2
+            _canvas.paste(_qr_raw, (_ox, _oy))
+            _qr_tk = ImageTk.PhotoImage(_canvas)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
             lbl.image = _qr_tk
             lbl.pack()
@@ -1256,9 +1260,13 @@ class Wizard(tk.Tk):
         qr_frame = tk.Frame(top, bg=PANEL, padx=10, pady=8)
         qr_frame.pack(side="left", padx=(6, 0))
         try:
-            _qr = Image.open(_asset("userinfobot_qr.png")).convert("RGBA")
-            _qr = _qr.resize((130, 130), Image.LANCZOS)
-            _qr_tk = ImageTk.PhotoImage(_qr)
+            _qr_raw = Image.open(_asset("qr_userinfobot.png")).convert("RGBA")
+            _qr_raw.thumbnail((130, 130), Image.LANCZOS)
+            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
+            _ox = (130 - _qr_raw.width) // 2
+            _oy = (130 - _qr_raw.height) // 2
+            _canvas.paste(_qr_raw, (_ox, _oy))
+            _qr_tk = ImageTk.PhotoImage(_canvas)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
             lbl.image = _qr_tk
             lbl.pack()
