@@ -2,15 +2,12 @@
 import os
 from PIL import Image
 
-SIZES  = [16, 32, 48, 64, 128, 256]
+SIZES  = [256, 128, 64, 48, 32, 16]
 _HERE  = os.path.dirname(os.path.abspath(__file__))
 SRC    = os.path.join(_HERE, "..", "assets", "finance-bot-logo.png")
 OUTPUT = os.path.join(_HERE, "..", "assets", "icon.ico")
 
 img = Image.open(SRC).convert("RGBA")
-
-images = [img.copy().resize((s, s), Image.LANCZOS) for s in SIZES]
-images[0].save(OUTPUT, format="ICO",
-               sizes=[(s, s) for s in SIZES],
-               append_images=images[1:])
-print(f"Salvo: {os.path.abspath(OUTPUT)}")
+frames = [img.resize((s, s), Image.LANCZOS) for s in SIZES]
+frames[0].save(OUTPUT, format="ICO", append_images=frames[1:])
+print(f"Salvo: {os.path.abspath(OUTPUT)} ({os.path.getsize(OUTPUT):,} bytes, {len(SIZES)} tamanhos)")

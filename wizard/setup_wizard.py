@@ -151,14 +151,10 @@ class Wizard(tk.Tk):
         self.resizable(False, False)
         self.configure(bg=BG)
         try:
-            import tempfile
             _logo_img = Image.open(_asset("finance-bot-logo.png")).convert("RGBA")
-            _ico_path = os.path.join(tempfile.gettempdir(), "financebot_icon.ico")
-            _logo_img.resize((256, 256), Image.LANCZOS).save(
-                _ico_path, format="ICO",
-                sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-            )
-            self.iconbitmap(_ico_path)
+            _tk_icon = ImageTk.PhotoImage(_logo_img.resize((256, 256), Image.LANCZOS))
+            self.iconphoto(True, _tk_icon)
+            self._icon_ref = _tk_icon
         except Exception:
             pass
         self._frame = None
@@ -1145,7 +1141,7 @@ class Wizard(tk.Tk):
 
         for num, text, url, btn_label in [
             ("1.", "Abra o @BotFather no Telegram, ou procure no aplicativo de celular", "https://t.me/BotFather", "Abrir BotFather"),
-            ("2.", "Envie  /newbot  e siga as instruções\nEscolha um nome; o username deve terminar em  bot", None, None),
+            ("2.", "Envie  /newbot  e siga as instruções\nEscolha um nome.\nEscolha um username, ele deve terminar em  bot", None, None),
             ("3.", "O BotFather vai te enviar um token — copie e cole abaixo", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
