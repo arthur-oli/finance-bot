@@ -16,6 +16,7 @@ from PIL import Image, ImageTk
 
 DEMO = "--demo" in sys.argv
 _DEMO_PAGE = next((sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--demo" and i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-")), None)
+DEMO_FULL = DEMO and _DEMO_PAGE == "full"
 
 if sys.platform == "win32":
     import ctypes
@@ -179,7 +180,7 @@ class Wizard(tk.Tk):
                 "review":           self._page_review,
                 "deploy":           self._page_deploy,
             }
-            page_fn = _pages.get(_DEMO_PAGE, self._page_deploy) if _DEMO_PAGE else self._page_deploy
+            page_fn = _pages.get(_DEMO_PAGE, self._page_deploy) if _DEMO_PAGE and not DEMO_FULL else self._page_welcome
             self._show(page_fn)
         else:
             self._show(self._page_welcome)
@@ -305,15 +306,24 @@ class Wizard(tk.Tk):
                       cursor="hand2").pack(side="left", padx=(8, 0))
 
         nb_ref = [None]
-        bg = BLUE if next_enabled else PANEL2
-        fg = "white" if next_enabled else TEXT
-        st = "normal" if next_enabled else "disabled"
+        _enabled = next_enabled or DEMO_FULL
+        bg = BLUE if _enabled else PANEL2
+        fg = "white" if _enabled else TEXT
+        st = "normal" if _enabled else "disabled"
         nb = tk.Button(f, text=next_label, command=next_fn or (lambda: None),
                        bg=bg, fg=fg, activebackground=BLUE2, activeforeground="white",
                        relief="flat", font=(FONT, 11, "bold"),
                        padx=28, pady=11, cursor="hand2",
                        state=st, disabledforeground=TEXT)
         nb.pack(side="right")
+        if DEMO_FULL:
+            _real_config = nb.config
+            def _unlocked_config(*a, **kw):
+                kw.pop("state", None)
+                kw.pop("disabledforeground", None)
+                if kw: _real_config(**kw)
+            nb.config = _unlocked_config
+            nb.configure = _unlocked_config
         nb_ref[0] = nb
         return nb
 
