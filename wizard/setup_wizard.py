@@ -968,7 +968,7 @@ class Wizard(tk.Tk):
             ("2.", "Clique em  Sign Up  e crie suas credenciais — confirme o e-mail (pode estar no lixo eletrônico)", None, None),
             ("3.", "Clique em  Create organization  (botão verde)", None, None),
             ("4.", "Em  Database password, clique em  Generate  ou crie uma senha segura → cole no campo abaixo\nEm  Region, escolha  South America (São Paulo)  •  Clique em  Create new project", None, None),
-            ("5.", "Clique em  Copy  ao lado de  Project URL  → cole no campo abaixo", None, None),
+            ("5.", "Clique em  Copy  ao lado da URL do projeto (começa com  https)  e selecione  Project URL  → cole no campo abaixo", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
             row.pack(anchor="w", pady=1, fill="x")
