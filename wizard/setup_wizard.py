@@ -958,42 +958,42 @@ class Wizard(tk.Tk):
                     self._var("SUPABASE_PROJECT_ID").set(m.group(1))
 
         body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
+        body.pack(fill="both", expand=True, padx=32, pady=(6, 0))
 
-        instr = tk.Frame(body, bg=PANEL, pady=10, padx=16)
+        instr = tk.Frame(body, bg=PANEL, pady=5, padx=12)
         instr.pack(fill="x")
 
         for num, text, url, btn_label in [
             ("1.", "Abra o supabase.com", "https://supabase.com/dashboard/sign-in", "Abrir supabase.com"),
             ("2.", "Clique em  Sign Up  e crie suas credenciais — confirme o e-mail (pode estar no lixo eletrônico)", None, None),
             ("3.", "Clique em  Create organization  (botão verde)", None, None),
-            ("4.", "Em  Database password, clique em  Generate  ou crie uma senha segura — cole-a no campo abaixo\nEm  Region, escolha  South America (São Paulo)\nClique em  Create new project  (botão verde)", None, None),
-            ("5.", "Clique em  Copy  ao lado de  Project URL  e cole abaixo", None, None),
+            ("4.", "Em  Database password, clique em  Generate  ou crie uma senha segura → cole no campo abaixo\nEm  Region, escolha  South America (São Paulo)  •  Clique em  Create new project", None, None),
+            ("5.", "Clique em  Copy  ao lado de  Project URL  → cole no campo abaixo", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=3, fill="x")
+            row.pack(anchor="w", pady=1, fill="x")
             tk.Label(row, text=num, bg=PANEL, fg=BLUE,
-                     font=(FONT, 10, "bold"), width=3).pack(side="left", anchor="n")
+                     font=(FONT, 9, "bold"), width=3).pack(side="left", anchor="n")
             col = tk.Frame(row, bg=PANEL)
             col.pack(side="left", fill="x")
             tk.Label(col, text=text, bg=PANEL, fg=MUTED,
-                     font=(FONT, 10), justify="left").pack(anchor="w")
+                     font=(FONT, 9), justify="left").pack(anchor="w")
             if url and btn_label:
                 tk.Button(col, text=btn_label + "  →",
                           command=lambda u=url: webbrowser.open(u),
                           bg=PANEL2, fg="white", relief="flat",
-                          font=(FONT, 9, "bold"), padx=10, pady=4,
-                          cursor="hand2").pack(anchor="w", pady=(5, 0))
-
-        v, _, _ = self._field(body, "SUPABASE_URL", "URL do projeto",
-                               hint="Exemplo:  https://abcdefghij.supabase.co",
-                               validate_fn=_val_url)
-        v.trace_add("write", _refresh_nb)
+                          font=(FONT, 8, "bold"), padx=8, pady=2,
+                          cursor="hand2").pack(anchor="w", pady=(3, 0))
 
         v2, _, _ = self._field(body, "SUPABASE_DB_PASSWORD", "Senha do banco (passo 4)",
                                 hint="A senha gerada em  Database password  no passo 4",
                                 secret=True, validate_fn=_val_pass)
         v2.trace_add("write", _refresh_nb)
+
+        v, _, _ = self._field(body, "SUPABASE_URL", "URL do projeto (passo 5)",
+                               hint="Exemplo:  https://abcdefghij.supabase.co",
+                               validate_fn=_val_url)
+        v.trace_add("write", _refresh_nb)
         _refresh_nb()
         return p
 
