@@ -1122,7 +1122,7 @@ class Wizard(tk.Tk):
         instr.pack(fill="x")
 
         for num, text, url, btn_label in [
-            ("1.", "Abra o @BotFather no Telegram", "https://t.me/BotFather", "Abrir BotFather"),
+            ("1.", "Abra o @BotFather no Telegram, ou procure no aplicativo de celular", "https://t.me/BotFather", "Abrir BotFather"),
             ("2.", "Envie  /newbot  e siga as instruções\nEscolha qualquer nome de exibição\nO username deve terminar em  bot", None, None),
             ("3.", "O BotFather vai te enviar um token.\nCopie e cole abaixo.", None, None),
         ]:
