@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 
@@ -72,7 +73,10 @@ export function Sidebar() {
     <>
       {/* Desktop sidebar */}
       <aside className="hidden sm:flex w-52 bg-gray-900 border-r border-gray-800 flex-col p-4 gap-2 shrink-0">
-        <h1 className="text-lg font-bold text-emerald-400 mb-4">💰 Finance</h1>
+        <div className="flex items-center gap-2 mb-4">
+          <Image src="/finance-bot-logo.png" alt="Finance Bot" width={40} height={40} className="rounded" />
+          <span className="text-base font-bold text-emerald-400 leading-tight">Finance<br/>Bot</span>
+        </div>
         {links.map((l) => (
           <Link
             key={l.href}
