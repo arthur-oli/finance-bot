@@ -15,6 +15,7 @@ load_dotenv()
 
 from app.routers import analytics, cards, forecast, goals, settings, subscriptions, transactions, users
 from app.scheduler.jobs import start_scheduler
+from app.db.migrations import apply_schema
 
 structlog.configure(
     processors=[
@@ -29,6 +30,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    apply_schema()
     start_scheduler()
     yield
 

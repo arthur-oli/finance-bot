@@ -91,4 +91,5 @@ export interface Settings {
   detail_markets: string[];
   default_pix_card: string;
   additional_system_prompt: string;
+  allowed_telegram_ids: number[];
 }

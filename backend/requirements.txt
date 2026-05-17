@@ -11,3 +11,4 @@ python-dotenv==1.0.1
 python-multipart==0.0.18
 pillow==11.0.0
 python-dateutil>=2.8.2
+psycopg2-binary==2.9.10

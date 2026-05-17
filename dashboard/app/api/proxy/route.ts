@@ -11,6 +11,7 @@ const ALLOWED_PATHS = [
   "/api/goals",
   "/api/subscriptions",
   "/api/settings",
+  "/api/users",
 ];
 
 export async function GET(req: NextRequest) {

@@ -15,6 +15,12 @@ import urllib.request
 
 DEMO = "--demo" in sys.argv
 
+if sys.platform == "win32":
+    import ctypes
+    _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\FinanceBotSetupWizard")
+    if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        sys.exit(0)
+
 # ── Project root ──────────────────────────────────────────────────────────────
 if getattr(sys, "frozen", False):
     ROOT = os.path.dirname(sys.executable)
@@ -149,8 +155,9 @@ class Wizard(tk.Tk):
 
     def _prefill_demo(self):
         demo_vals = {
-            "SUPABASE_PROJECT_ID":       "abcdefghij1234567890",
             "SUPABASE_URL":              "https://abcdefghij1234567890.supabase.co",
+            "SUPABASE_PROJECT_ID":       "abcdefghij1234567890",
+            "SUPABASE_DB_PASSWORD":      "demo-password-1234",
             "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo",
             "TELEGRAM_BOT_TOKEN":        "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ123456",
             "TELEGRAM_USER_IDS":         "987654321",
@@ -431,7 +438,14 @@ class Wizard(tk.Tk):
         self._header(p, "Preparando seu computador",
                      "Vamos instalar as ferramentas necessárias.", phase=0)
 
-        # Footer first
+        nf = tk.Frame(p, bg=PANEL2)
+        nf.pack(fill="x", padx=32, pady=(10, 0))
+        tk.Label(nf,
+                 text="ℹ️  Novas janelas poderão ser abertas durante as instalações, "
+                      "e confirmações poderão ser solicitadas.",
+                 bg=PANEL2, fg=MUTED, font=(FONT, 9), pady=8, padx=14,
+                 justify="left", wraplength=680).pack(anchor="w")
+
         nb = self._footer(p,
                           back_fn=lambda: self._show(self._page_welcome),
                           next_fn=lambda: self._show(self._page_clone),
@@ -454,12 +468,34 @@ class Wizard(tk.Tk):
             log_box.see("end")
             log_box.config(state="disabled")
 
-        items = []
+        items           = []
+        all_do_fns      = []
+        verified        = set()
+        v_lock          = threading.Lock()
+        install_all_ref = [None]   # preenchido depois, referenciado em _mark_verified
 
-        def _recheck_all():
-            all_ok = True
-            for icon_lbl, status_lbl, act_btn, chk_fn in items:
+        def _mark_verified(chk_fn):
+            with v_lock:
+                verified.add(chk_fn)
+                all_done = len(verified) == len(items)
+            if all_done:
+                self.after(0, lambda: nb.config(state="normal", bg=BLUE, fg="white"))
+                if install_all_ref[0]:
+                    self.after(0, lambda: install_all_ref[0].config(
+                        state="disabled", bg=DIM,
+                        text="✓  Tudo instalado"))
+
+        def _recheck_all(on_done=None):
+            pending = [len(items)]
+            lock    = threading.Lock()
+
+            def _check_one(icon_lbl, status_lbl, act_btn, chk_fn):
                 ok = chk_fn()
+                if ok:
+                    _mark_verified(chk_fn)
+                with lock:
+                    pending[0] -= 1
+                    finished = pending[0] == 0
                 self.after(0, lambda i=icon_lbl, sl=status_lbl, b=act_btn, o=ok: (
                     i.config(text="✅" if o else "❌", fg=GREEN if o else RED),
                     sl.config(text="Instalado" if o else "Pendente",
@@ -467,38 +503,91 @@ class Wizard(tk.Tk):
                     b.config(state="disabled" if o else "normal",
                              bg=DIM if o else BLUE, fg="white"),
                 ))
-                if not ok:
-                    all_ok = False
-            if all_ok:
-                self.after(0, lambda: nb.config(state="normal", bg=BLUE, fg="white"))
+                if finished and on_done:
+                    self.after(0, on_done)
+
+            for icon_lbl, status_lbl, act_btn, chk_fn in items:
+                threading.Thread(target=_check_one,
+                                 args=(icon_lbl, status_lbl, act_btn, chk_fn),
+                                 daemon=True).start()
+
+        SPIN_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 
         def _make_row(name, note, chk_fn, act_fn, act_label):
             row = tk.Frame(body, bg=PANEL, pady=12, padx=18)
             row.pack(fill="x", pady=4)
 
-            left = tk.Frame(row, bg=PANEL)
+            top = tk.Frame(row, bg=PANEL)
+            top.pack(fill="x")
+
+            left = tk.Frame(top, bg=PANEL)
             left.pack(side="left", fill="x", expand=True)
             icon = tk.Label(left, text="⏳", bg=PANEL, fg=MUTED, font=(FONT, 15), width=3)
             icon.pack(side="left")
             txt = tk.Frame(left, bg=PANEL)
             txt.pack(side="left")
-            tk.Label(txt, text=name, bg=PANEL, fg=TEXT,
-                     font=(FONT, 11, "bold")).pack(anchor="w")
+            name_lbl = tk.Label(txt, text=name, bg=PANEL, fg=TEXT, font=(FONT, 11, "bold"))
+            name_lbl.pack(anchor="w")
             st = tk.Label(txt, text="verificando…", bg=PANEL, fg=DIM, font=(FONT, 9))
             st.pack(anchor="w")
 
-            def _do(af=act_fn):
-                log_wrap.pack(fill="x", pady=(8, 0))
-                threading.Thread(target=lambda: (
-                    af(_log), _refresh_path(), self.after(0, _recheck_all)
-                ), daemon=True).start()
+            # Spinner state (um por row)
+            spin = {"running": False, "id": None, "frame": 0}
 
-            btn = tk.Button(row, text=act_label, command=_do,
+            def _start_spin():
+                spin["running"] = True
+                spin["frame"]   = 0
+                def _tick():
+                    if not spin["running"]:
+                        return
+                    name_lbl.config(
+                        text=f"{name}  {SPIN_FRAMES[spin['frame'] % len(SPIN_FRAMES)]}",
+                        fg=YELLOW)
+                    spin["frame"] += 1
+                    spin["id"] = self.after(80, _tick)
+                _tick()
+
+            def _stop_spin():
+                spin["running"] = False
+                if spin["id"]:
+                    self.after_cancel(spin["id"])
+                    spin["id"] = None
+                name_lbl.config(text=name, fg=TEXT)
+
+            btn_ref = [None]
+
+            def _do(af=act_fn, my_chk=chk_fn):
+                log_wrap.pack(fill="x", pady=(8, 0))
+                btn_ref[0].config(state="disabled", bg=DIM, text="Instalando…")
+                _start_spin()
+
+                def _run():
+                    af(_log)
+                    _refresh_path()
+                    self.after(0, lambda: st.config(text="Verificando…", fg=YELLOW))
+                    ok = my_chk()
+                    if ok:
+                        _mark_verified(my_chk)
+                    self.after(0, lambda o=ok: (
+                        _stop_spin(),
+                        icon.config(text="✅" if o else "❌", fg=GREEN if o else RED),
+                        st.config(text="Instalado" if o else "Erro — tente novamente",
+                                  fg=GREEN if o else RED),
+                        btn_ref[0].config(state="disabled" if o else "normal",
+                                          bg=DIM if o else BLUE, fg="white",
+                                          text=act_label),
+                    ))
+
+                threading.Thread(target=_run, daemon=True).start()
+
+            btn = tk.Button(top, text=act_label, command=_do,
                             bg=BLUE, fg="white", relief="flat",
                             font=(FONT, 9, "bold"), padx=12, pady=6, cursor="hand2",
                             disabledforeground="white")
             btn.pack(side="right")
+            btn_ref[0] = btn
             items.append((icon, st, btn, chk_fn))
+            all_do_fns.append(_do)
 
         def _inst_fly(log_fn):
             log_fn("Instalando via winget…")
@@ -540,23 +629,41 @@ class Wizard(tk.Tk):
         _make_row("Git",      "Faz o download e as atualizações do bot",
                   lambda: _check(["git", "--version"]), _inst_git, "Instalar agora")
 
-        def _init():
-            all_ok = True
-            for icon, st, btn, chk in items:
-                ok = chk()
-                self.after(0, lambda i=icon, s=st, b=btn, o=ok: (
-                    i.config(text="✅" if o else "❌", fg=GREEN if o else RED),
-                    s.config(text="Instalado" if o else "Pendente",
-                             fg=GREEN if o else MUTED),
-                    b.config(state="disabled" if o else "normal",
-                             bg=DIM if o else BLUE, fg="white"),
-                ))
-                if not ok:
-                    all_ok = False
-            if all_ok:
-                self.after(0, lambda: nb.config(state="normal", bg=BLUE, fg="white"))
+        # ── Botão "Instalar tudo" ──────────────────────────────────────────────
+        # install_all_ref é definido cedo (no topo), _mark_verified já o conhece.
 
-        threading.Thread(target=_init, daemon=True).start()
+        def _install_all():
+            with v_lock:
+                pending_indices = [i for i, (_, _, _, chk_fn) in enumerate(items)
+                                   if chk_fn not in verified]
+            if not pending_indices:
+                return
+            install_all_ref[0].config(state="disabled", bg=DIM, text="Instalando…")
+            # _do() é seguro chamar da thread principal — ela mesma abre bg threads
+            for i in pending_indices:
+                all_do_fns[i]()
+
+        install_all_ref[0] = tk.Button(
+            body, text="⬇  Instalar tudo",
+            command=_install_all,
+            bg=GREEN, fg="white", activebackground="#16a34a", activeforeground="white",
+            relief="flat", font=(FONT, 10, "bold"),
+            padx=20, pady=9, cursor="hand2",
+            disabledforeground="white",
+        )
+        install_all_ref[0].pack(anchor="e", pady=(10, 0))
+
+        def _on_initial_check():
+            with v_lock:
+                all_ok = len(verified) == len(items)
+            if install_all_ref[0]:
+                install_all_ref[0].config(
+                    state="disabled" if all_ok else "normal",
+                    bg=DIM if all_ok else GREEN,
+                    text="✓  Tudo instalado" if all_ok else "⬇  Instalar tudo",
+                )
+
+        _recheck_all(on_done=_on_initial_check)
         return p
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -585,7 +692,7 @@ class Wizard(tk.Tk):
         row = tk.Frame(folder_card, bg=PANEL)
         row.pack(fill="x", pady=(6, 0))
 
-        path_var = tk.StringVar(value=r"C:\FinanceBot")
+        path_var = tk.StringVar(value=r"C:\Program Files\FinanceBot")
 
         path_entry = tk.Entry(row, textvariable=path_var, bg=PANEL2, fg=TEXT,
                               insertbackground=TEXT, relief="flat",
@@ -668,7 +775,8 @@ class Wizard(tk.Tk):
                 self.after(0, lambda: _log("Clonando repositório (pode levar alguns minutos)…"))
                 try:
                     proc = _popen(
-                        ["git", "clone", "--branch", tag,
+                        ["git", "-c", "advice.detachedHead=false",
+                         "clone", "--branch", tag,
                          f"https://github.com/{GITHUB_REPO}", path]
                     )
                     for line in proc.stdout:
@@ -707,19 +815,25 @@ class Wizard(tk.Tk):
         return p
 
     # ══════════════════════════════════════════════════════════════════════════
-    # Tela 2a — Supabase: Project ID
+    # Tela 2a — Supabase: Project URL
     # ══════════════════════════════════════════════════════════════════════════
     def _page_supabase(self):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Supabase — banco de dados",
-                     "Crie o projeto e copie o ID — o resto o assistente faz.",
+                     "Siga o passo a passo abaixo para criar o projeto.",
                      phase=1, provider_idx=0)
 
-        def _val_id(v):
+        def _val_url(v):
+            v = v.strip().rstrip("/")
+            if re.match(r'^https://[a-z0-9]{16,26}\.supabase\.co$', v):
+                return True, "✓  URL válida"
+            return False, "✗  Cole a URL do projeto — ex:  https://abcdefghij.supabase.co"
+
+        def _val_pass(v):
             v = v.strip()
-            if re.match(r'^[a-z0-9]{16,26}$', v):
-                return True, "✓  Formato correto"
-            return False, "✗  O ID tem ~20 letras minúsculas e números, sem espaços"
+            if len(v) >= 8:
+                return True, "✓  Senha registrada"
+            return False, "✗  Cole a senha gerada no passo 5"
 
         nb = self._footer(p,
                           back_fn=lambda: self._show(self._page_clone),
@@ -727,24 +841,35 @@ class Wizard(tk.Tk):
                           next_enabled=False)
 
         def _refresh_nb(*_):
-            ok, _ = _val_id(self._var("SUPABASE_PROJECT_ID").get())
+            raw = self._var("SUPABASE_URL").get().strip().rstrip("/")
+            ok_url, _ = _val_url(raw)
+            ok_pass, _ = _val_pass(self._var("SUPABASE_DB_PASSWORD").get())
+            ok = ok_url and ok_pass
             nb.config(state="normal" if ok else "disabled",
                       bg=BLUE if ok else PANEL2,
                       fg="white" if ok else TEXT)
+            if ok_url:
+                m = re.match(r'^https://([a-z0-9]+)\.supabase\.co$', raw)
+                if m:
+                    self._var("SUPABASE_PROJECT_ID").set(m.group(1))
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
 
-        instr = tk.Frame(body, bg=PANEL, pady=14, padx=16)
+        instr = tk.Frame(body, bg=PANEL, pady=10, padx=16)
         instr.pack(fill="x")
 
         for num, text, url, btn_label in [
-            ("1.", "Crie sua conta gratuita no Supabase", "https://supabase.com", "Abrir supabase.com"),
-            ("2.", "Crie um novo projeto\nRegião: South America (São Paulo)\nAguarde ~1 minuto para iniciar", None, None),
-            ("3.", "Na lista de projetos, clique nos  ⁝  ao lado\ndo nome e escolha  Copy project ID\n(ou abra o projeto e veja o ID no topo da URL)", None, None),
+            ("1.", "Abra o supabase.com", "https://supabase.com/dashboard/sign-in", "Abrir supabase.com"),
+            ("2.", "Clique em  Start your project  (botão verde)", None, None),
+            ("3.", "Clique em  Sign Up  e crie suas credenciais\nConfirme o e-mail (pode estar no lixo eletrônico)", None, None),
+            ("4.", "Clique em  Create organization  (botão verde)", None, None),
+            ("5.", "Clique em  Generate a password  em  Database password\nClique em  Copy  ao lado da senha e guarde-a — você vai precisar dela na próxima tela\nEm  Region, escolha  South America (São Paulo)\nClique em  Create new project  (botão verde)", None, None),
+            ("6.", "Aguarde ~1 minuto para o projeto inicializar", None, None),
+            ("7.", "Clique em  Copy  ao lado de  Project URL  e cole abaixo", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=5, fill="x")
+            row.pack(anchor="w", pady=3, fill="x")
             tk.Label(row, text=num, bg=PANEL, fg=BLUE,
                      font=(FONT, 10, "bold"), width=3).pack(side="left", anchor="n")
             col = tk.Frame(row, bg=PANEL)
@@ -758,10 +883,15 @@ class Wizard(tk.Tk):
                           font=(FONT, 9, "bold"), padx=10, pady=4,
                           cursor="hand2").pack(anchor="w", pady=(5, 0))
 
-        v, _, _ = self._field(body, "SUPABASE_PROJECT_ID", "ID do projeto (Project Ref)",
-                               hint="Exemplo:  abcdefghijklmnopqrst  (só letras e números)",
-                               validate_fn=_val_id)
+        v, _, _ = self._field(body, "SUPABASE_URL", "URL do projeto",
+                               hint="Exemplo:  https://abcdefghij.supabase.co",
+                               validate_fn=_val_url)
         v.trace_add("write", _refresh_nb)
+
+        v2, _, _ = self._field(body, "SUPABASE_DB_PASSWORD", "Senha do banco (passo 5)",
+                                hint="A senha que você copiou ao clicar em  Generate a password",
+                                secret=True, validate_fn=_val_pass)
+        v2.trace_add("write", _refresh_nb)
         _refresh_nb()
         return p
 
@@ -833,61 +963,27 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     def _page_supabase_sql(self):
         p = tk.Frame(self, bg=BG)
-        self._header(p, "Supabase — criar as tabelas",
-                     "Execute o schema para o bot ter onde guardar os dados.",
+        self._header(p, "Supabase — tabelas automáticas",
+                     "Não é necessária nenhuma ação manual.",
                      phase=1, provider_idx=0)
 
-        nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_supabase_keys),
-                          next_fn=lambda: self._show(self._page_telegram_bot))
+        self._footer(p,
+                     back_fn=lambda: self._show(self._page_supabase_keys),
+                     next_fn=lambda: self._show(self._page_telegram_bot))
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
 
-        proj_id = self._var("SUPABASE_PROJECT_ID").get().strip()
-        sql_url = f"https://supabase.com/dashboard/project/{proj_id}/sql/new"
+        info = tk.Frame(body, bg=PANEL, pady=20, padx=20)
+        info.pack(fill="x")
 
-        instr = tk.Frame(body, bg=PANEL, pady=14, padx=16)
-        instr.pack(fill="x")
-
-        for num, text, action in [
-            ("1.", "Copie o SQL abaixo para a área de transferência", "copy"),
-            ("2.", "Abra o SQL Editor do seu projeto", "open"),
-            ("3.", "Cole o SQL (Ctrl+V) e execute com  Ctrl+Enter\nAguarde a confirmação de sucesso", None),
-        ]:
-            row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=5, fill="x")
-            tk.Label(row, text=num, bg=PANEL, fg=BLUE,
-                     font=(FONT, 10, "bold"), width=3).pack(side="left", anchor="n")
-            col = tk.Frame(row, bg=PANEL)
-            col.pack(side="left", fill="x", expand=True)
-            tk.Label(col, text=text, bg=PANEL, fg=MUTED,
-                     font=(FONT, 10), justify="left").pack(anchor="w")
-            if action == "copy":
-                def _copy_sql(btn=None):
-                    try:
-                        with open(SCHEMA_SQL, encoding="utf-8") as f:
-                            sql = f.read()
-                        self.clipboard_clear()
-                        self.clipboard_append(sql)
-                        copy_btn.config(text="✓  Copiado!", fg=GREEN, bg=PANEL2)
-                        self.after(2000, lambda: copy_btn.config(text="Copiar SQL  →", fg="white", bg=BLUE))
-                    except Exception:
-                        copy_btn.config(text="schema.sql não encontrado", fg=RED, bg=PANEL2)
-                copy_btn = tk.Button(col, text="Copiar SQL  →", command=_copy_sql,
-                                     bg=BLUE, fg="white", relief="flat",
-                                     font=(FONT, 9, "bold"), padx=10, pady=4,
-                                     cursor="hand2")
-                copy_btn.pack(anchor="w", pady=(5, 0))
-            elif action == "open":
-                tk.Button(col, text="Abrir SQL Editor  →",
-                          command=lambda: webbrowser.open(sql_url),
-                          bg=PANEL2, fg="white", relief="flat",
-                          font=(FONT, 9, "bold"), padx=10, pady=4,
-                          cursor="hand2").pack(anchor="w", pady=(5, 0))
-
-        # Auto-construct and store SUPABASE_URL silently
-        self._var("SUPABASE_URL", f"https://{proj_id}.supabase.co")
+        tk.Label(info, text="✅  Tudo certo!", bg=PANEL, fg=GREEN,
+                 font=(FONT, 14, "bold")).pack(anchor="w")
+        tk.Label(info,
+                 text="Quando o servidor iniciar pela primeira vez,\n"
+                      "as tabelas serão criadas automaticamente no seu banco.\n\n"
+                      "Você não precisa abrir o SQL Editor nem colar nenhum código.",
+                 bg=PANEL, fg=MUTED, font=(FONT, 10), justify="left").pack(anchor="w", pady=(8, 0))
 
         return p
 
@@ -948,6 +1044,19 @@ class Wizard(tk.Tk):
                                secret=True, validate_fn=_val_token)
         v.trace_add("write", _refresh_nb)
         _refresh_nb()
+
+        # Dica de uso em grupo
+        tip = tk.Frame(body, bg=PANEL2, pady=10, padx=14)
+        tip.pack(fill="x", pady=(12, 0))
+        tk.Label(tip,
+                 text="💡  Quer usar o bot em um grupo do Telegram com vários usuários?",
+                 bg=PANEL2, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
+        tk.Label(tip,
+                 text="No @BotFather, selecione seu bot e acesse:\n"
+                      "Bot Settings  →  Group Privacy  →  Turn off\n"
+                      "Assim o bot consegue ler mensagens dentro de grupos.",
+                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(4, 0))
+
         return p
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -1002,11 +1111,18 @@ class Wizard(tk.Tk):
                           font=(FONT, 9, "bold"), padx=10, pady=4,
                           cursor="hand2").pack(anchor="w", pady=(5, 0))
 
-        tk.Label(body,
-                 text="Se quiser permitir que outra pessoa use o bot, adicione\no ID dela separado por vírgula.",
-                 bg=BG, fg=DIM, font=(FONT, 9), justify="left").pack(anchor="w", pady=(14, 0))
+        tip = tk.Frame(body, bg=PANEL2, pady=10, padx=14)
+        tip.pack(fill="x", pady=(12, 0))
+        tk.Label(tip,
+                 text="⚠️  Somente os IDs listados aqui conseguem usar o bot.",
+                 bg=PANEL2, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
+        tk.Label(tip,
+                 text="Se outra pessoa tentar mandar mensagem e o ID dela não estiver na lista,\n"
+                      "o bot simplesmente não vai responder.\n"
+                      "Adicione todos os usuários agora, separando os IDs por vírgula.",
+                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(4, 0))
 
-        v, _, _ = self._field(body, "TELEGRAM_USER_IDS", "Seu ID de usuário",
+        v, _, _ = self._field(body, "TELEGRAM_USER_IDS", "IDs de usuário (todos que vão usar o bot)",
                                hint="Apenas números, ex: 123456789",
                                validate_fn=_val_uid)
         v.trace_add("write", _refresh_nb)
@@ -1524,10 +1640,18 @@ class Wizard(tk.Tk):
             _update_toml(BACKEND_TOML, bapp)
             if not _fly_exists(bapp):
                 _run(["fly", "apps", "create", bapp])
+            # Copy schema.sql into backend dir so Docker COPY picks it up
+            import shutil as _shutil
+            if os.path.exists(SCHEMA_SQL):
+                _shutil.copy2(SCHEMA_SQL, os.path.join(BACKEND_DIR, "schema.sql"))
+            proj_ref = v.get("SUPABASE_PROJECT_ID", "").strip()
+            db_password = v.get("SUPABASE_DB_PASSWORD", "").strip()
+            db_url = f"postgresql://postgres:{db_password}@db.{proj_ref}.supabase.co:5432/postgres"
             ok, _ = _run([
                 "fly", "secrets", "set",
                 f"SUPABASE_URL={v['SUPABASE_URL']}",
                 f"SUPABASE_SERVICE_ROLE_KEY={v['SUPABASE_SERVICE_ROLE_KEY']}",
+                f"DATABASE_URL={db_url}",
                 f"API_SECRET_KEY={api_key}",
                 "--app", bapp,
             ], cwd=BACKEND_DIR)

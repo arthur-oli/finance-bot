@@ -141,6 +141,7 @@ function TransactionsContent() {
   const { data: users } = useQuery<string[]>({
     queryKey: ["users"],
     queryFn: () => api.get("/api/users/"),
+    staleTime: 5 * 60 * 1000,
   });
 
   const [form, setForm] = useState({
@@ -150,6 +151,7 @@ function TransactionsContent() {
     description: "",
     amount: "",
     card_id: "",
+    user: "",
   });
 
   const effectiveCardId = form.card_id || defaultCardId;
@@ -171,7 +173,7 @@ function TransactionsContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     date: "", type: "expense" as "income" | "expense",
-    category: "", description: "", amount: "", card_id: "",
+    category: "", description: "", amount: "", card_id: "", user: "",
   });
 
   const update = useMutation({
@@ -193,6 +195,7 @@ function TransactionsContent() {
       description: t.description,
       amount: String(t.amount),
       card_id: t.card_id ?? "",
+      user: t.user ?? "",
     });
   }
 
@@ -209,6 +212,7 @@ function TransactionsContent() {
         description: editForm.description,
         amount,
         card_id: editForm.card_id || null,
+        user: editForm.user.trim() || null,
       },
     });
   }
@@ -223,6 +227,7 @@ function TransactionsContent() {
       amount: parseFloat(form.amount),
       card_id: effectiveCardId,
     };
+    if (form.user.trim()) body.user = form.user.trim();
     create.mutate(body);
   }
 
@@ -461,6 +466,17 @@ function TransactionsContent() {
           {cards?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
 
+        <input
+          placeholder="Autor (opcional)"
+          value={form.user}
+          onChange={(e) => setForm({ ...form, user: e.target.value })}
+          list="users-datalist"
+          className="bg-gray-800 rounded-lg px-3 py-2 text-sm sm:col-span-2"
+        />
+        <datalist id="users-datalist">
+          {users?.map(u => <option key={u} value={u} />)}
+        </datalist>
+
         <button type="submit" disabled={create.isPending}
           className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
           {create.isPending ? "Salvando..." : "Salvar"}
@@ -505,6 +521,13 @@ function TransactionsContent() {
                 <option value="">— Sem cartão —</option>
                 {cards?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              <input
+                value={editForm.user}
+                onChange={e => setEditForm(f => ({ ...f, user: e.target.value }))}
+                list="users-datalist"
+                placeholder="Autor (opcional)"
+                className={inp}
+              />
               <div className="flex gap-2">
                 <button onClick={saveEdit} disabled={update.isPending}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors disabled:opacity-40">
@@ -612,7 +635,15 @@ function TransactionsContent() {
                       {cards?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </td>
-                  <td className={`${cell} hidden md:table-cell text-gray-500 text-xs`}>{t.user ?? "—"}</td>
+                  <td className={`${cell} hidden md:table-cell`}>
+                    <input
+                      value={editForm.user}
+                      onChange={e => setEditForm(f => ({ ...f, user: e.target.value }))}
+                      list="users-datalist"
+                      placeholder="—"
+                      className={input}
+                    />
+                  </td>
                   <td className={cell}>
                     <div className="flex gap-1 items-center justify-end">
                       <select value={editForm.type}
