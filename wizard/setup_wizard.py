@@ -937,7 +937,7 @@ class Wizard(tk.Tk):
             v = v.strip()
             if len(v) >= 8:
                 return True, "✓  Senha registrada"
-            return False, "✗  Cole a senha gerada no passo 5"
+            return False, "✗  Cole a senha gerada no passo 4"
 
         nb = self._footer(p,
                           back_fn=lambda: self._show(self._page_clone),
@@ -965,12 +965,10 @@ class Wizard(tk.Tk):
 
         for num, text, url, btn_label in [
             ("1.", "Abra o supabase.com", "https://supabase.com/dashboard/sign-in", "Abrir supabase.com"),
-            ("2.", "Clique em  Start your project  (botão verde)", None, None),
-            ("3.", "Clique em  Sign Up  e crie suas credenciais\nConfirme o e-mail (pode estar no lixo eletrônico)", None, None),
-            ("4.", "Clique em  Create organization  (botão verde)", None, None),
-            ("5.", "Clique em  Generate a password  em  Database password\nClique em  Copy  ao lado da senha e guarde-a — você vai precisar dela na próxima tela\nEm  Region, escolha  South America (São Paulo)\nClique em  Create new project  (botão verde)", None, None),
-            ("6.", "Aguarde ~1 minuto para o projeto inicializar", None, None),
-            ("7.", "Clique em  Copy  ao lado de  Project URL  e cole abaixo", None, None),
+            ("2.", "Clique em  Sign Up  e crie suas credenciais — confirme o e-mail (pode estar no lixo eletrônico)", None, None),
+            ("3.", "Clique em  Create organization  (botão verde)", None, None),
+            ("4.", "Em  Database password, clique em  Generate  ou crie uma senha segura — cole-a no campo abaixo\nEm  Region, escolha  South America (São Paulo)\nClique em  Create new project  (botão verde)", None, None),
+            ("5.", "Clique em  Copy  ao lado de  Project URL  e cole abaixo", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
             row.pack(anchor="w", pady=3, fill="x")
@@ -992,8 +990,8 @@ class Wizard(tk.Tk):
                                validate_fn=_val_url)
         v.trace_add("write", _refresh_nb)
 
-        v2, _, _ = self._field(body, "SUPABASE_DB_PASSWORD", "Senha do banco (passo 5)",
-                                hint="A senha que você copiou ao clicar em  Generate a password",
+        v2, _, _ = self._field(body, "SUPABASE_DB_PASSWORD", "Senha do banco (passo 4)",
+                                hint="A senha gerada em  Database password  no passo 4",
                                 secret=True, validate_fn=_val_pass)
         v2.trace_add("write", _refresh_nb)
         _refresh_nb()
