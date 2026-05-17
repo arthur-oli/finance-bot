@@ -434,7 +434,6 @@ class Wizard(tk.Tk):
             ("📋", "Você vai criar 5 contas gratuitas, uma por vez"),
             ("⚡", "O assistente faz logins e publicações automaticamente"),
             ("⏱", "Tempo estimado: 15–20 minutos"),
-            ("📱", "Mantenha o Telegram aberto — você vai usar"),
         ]:
             row = tk.Frame(info, bg=PANEL)
             row.pack(anchor="w", pady=3)
@@ -467,21 +466,36 @@ class Wizard(tk.Tk):
                           next_enabled=False)
 
         body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(16, 0))
+        body.pack(fill="both", expand=True, padx=32, pady=(12, 0))
 
-        log_wrap = tk.Frame(body, bg=BG)
-        log_box  = scrolledtext.ScrolledText(log_wrap, bg=PANEL, fg=MUTED,
-                                             font=("Consolas", 8), relief="flat",
-                                             state="disabled", height=5)
-        log_box.pack(fill="x")
-        log_box.tag_config("ok",  foreground=GREEN)
-        log_box.tag_config("err", foreground=RED)
+        # Log em popup separado — não consome espaço na tela principal
+        _popup = [None]
+
+        def _ensure_popup():
+            if _popup[0] and _popup[0].winfo_exists():
+                return _popup[0]
+            win = tk.Toplevel(self)
+            win.title("Detalhes da instalação")
+            win.geometry("560x280")
+            win.configure(bg=BG)
+            win.resizable(True, True)
+            box = scrolledtext.ScrolledText(win, bg=PANEL, fg=MUTED,
+                                            font=("Consolas", 9), relief="flat",
+                                            state="disabled")
+            box.pack(fill="both", expand=True, padx=10, pady=10)
+            box.tag_config("ok",  foreground=GREEN)
+            box.tag_config("err", foreground=RED)
+            win._log_box = box
+            _popup[0] = win
+            return win
 
         def _log(text, tag=None):
-            log_box.config(state="normal")
-            log_box.insert("end", text + "\n", tag or "")
-            log_box.see("end")
-            log_box.config(state="disabled")
+            win = _ensure_popup()
+            box = win._log_box
+            box.config(state="normal")
+            box.insert("end", text + "\n", tag or "")
+            box.see("end")
+            box.config(state="disabled")
 
         items           = []
         all_do_fns      = []
@@ -530,8 +544,8 @@ class Wizard(tk.Tk):
         SPIN_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 
         def _make_row(name, note, chk_fn, act_fn, act_label):
-            row = tk.Frame(body, bg=PANEL, pady=12, padx=18)
-            row.pack(fill="x", pady=4)
+            row = tk.Frame(body, bg=PANEL, pady=8, padx=16)
+            row.pack(fill="x", pady=3)
 
             top = tk.Frame(row, bg=PANEL)
             top.pack(fill="x")
@@ -573,7 +587,6 @@ class Wizard(tk.Tk):
             btn_ref = [None]
 
             def _do(af=act_fn, my_chk=chk_fn):
-                log_wrap.pack(fill="x", pady=(8, 0))
                 btn_ref[0].config(state="disabled", bg=DIM, text="Instalando…")
                 _start_spin()
 
@@ -643,8 +656,19 @@ class Wizard(tk.Tk):
                     return
             log_fn("Git instalado.", "ok")
 
+        def _chk_fly():
+            if _check(["fly", "version"]):
+                return True
+            # Script PS instala em ~/.fly/bin que pode não estar no PATH após _refresh_path()
+            fly_bin = os.path.join(os.environ.get("USERPROFILE", ""), ".fly", "bin")
+            if os.path.isdir(fly_bin):
+                if fly_bin not in os.environ.get("PATH", ""):
+                    os.environ["PATH"] = fly_bin + ";" + os.environ["PATH"]
+                return _check(["fly", "version"])
+            return False
+
         _make_row("Fly CLI",  "Publica o backend e o bot",
-                  lambda: _check(["fly", "version"]), _inst_fly, "Instalar agora")
+                  _chk_fly, _inst_fly, "Instalar agora")
         _make_row("Node.js",  "Publica o painel web",
                   lambda: _check(["node", "--version"]), _inst_node, "Instalar agora")
         _make_row("Git",      "Faz o download e as atualizações do bot",
@@ -727,10 +751,11 @@ class Wizard(tk.Tk):
                 path_var.set(os.path.normpath(d))
             _validate()
 
-        tk.Button(row, text="Escolher…", command=_browse,
-                  bg=PANEL2, fg=TEXT, activebackground=PANEL, activeforeground=TEXT,
-                  relief="flat", font=(FONT, 10), padx=12, pady=6,
-                  cursor="hand2").pack(side="left")
+        browse_btn = tk.Button(row, text="Escolher…", command=_browse,
+                               bg=PANEL2, fg=TEXT, activebackground=PANEL, activeforeground=TEXT,
+                               relief="flat", font=(FONT, 10), padx=12, pady=6,
+                               cursor="hand2")
+        browse_btn.pack(side="left")
 
         status_lbl = tk.Label(folder_card,
                                text="A pasta deve estar vazia ou não existir.",
@@ -815,6 +840,7 @@ class Wizard(tk.Tk):
                     self._info["install_path"] = path
                     self.after(0, lambda: (
                         _log(f"✓  Finance Bot {tag} instalado em {path}", "ok"),
+                        browse_btn.config(state="disabled", bg=DIM),
                         nb.config(state="normal", bg=BLUE, fg="white",
                                   text="Continuar  →",
                                   command=lambda: self._show(self._page_supabase)),
@@ -826,6 +852,7 @@ class Wizard(tk.Tk):
                                   text="Tentar novamente  →",
                                   command=_do_clone),
                         path_entry.config(state="normal"),
+                        browse_btn.config(state="normal", bg=PANEL2),
                     ))
 
             threading.Thread(target=_thread, daemon=True).start()
