@@ -468,15 +468,26 @@ class Wizard(tk.Tk):
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(12, 0))
 
-        # Log em popup separado — não consome espaço na tela principal
-        _popup = [None]
+        # Log bufferizado — popup só abre quando o usuário pede
+        _log_buf = []   # lista de (text, tag)
+        _popup   = [None]
 
-        def _ensure_popup():
+        def _log(text, tag=None):
+            _log_buf.append((text, tag))
             if _popup[0] and _popup[0].winfo_exists():
-                return _popup[0]
+                box = _popup[0]._log_box
+                box.config(state="normal")
+                box.insert("end", text + "\n", tag or "")
+                box.see("end")
+                box.config(state="disabled")
+
+        def _open_logs():
+            if _popup[0] and _popup[0].winfo_exists():
+                _popup[0].lift()
+                return
             win = tk.Toplevel(self)
             win.title("Detalhes da instalação")
-            win.geometry("560x280")
+            win.geometry("560x300")
             win.configure(bg=BG)
             win.resizable(True, True)
             box = scrolledtext.ScrolledText(win, bg=PANEL, fg=MUTED,
@@ -485,23 +496,18 @@ class Wizard(tk.Tk):
             box.pack(fill="both", expand=True, padx=10, pady=10)
             box.tag_config("ok",  foreground=GREEN)
             box.tag_config("err", foreground=RED)
-            win._log_box = box
-            _popup[0] = win
-            return win
-
-        def _log(text, tag=None):
-            win = _ensure_popup()
-            box = win._log_box
             box.config(state="normal")
-            box.insert("end", text + "\n", tag or "")
+            for t, tg in _log_buf:
+                box.insert("end", t + "\n", tg or "")
             box.see("end")
             box.config(state="disabled")
+            win._log_box = box
+            _popup[0] = win
 
         items           = []
         all_do_fns      = []
         verified        = set()
         v_lock          = threading.Lock()
-        _winget_lock    = threading.Lock()   # serializa chamadas winget (evita conflito paralelo)
         install_all_ref = [None]   # preenchido depois, referenciado em _mark_verified
 
         def _mark_verified(chk_fn):
@@ -619,52 +625,61 @@ class Wizard(tk.Tk):
             all_do_fns.append(_do)
 
         def _inst_fly(log_fn):
-            with _winget_lock:
-                log_fn("Instalando via winget…")
-                r = subprocess.run(
-                    ["winget", "install", "-e", "--id", "Fly.flyctl",
-                     "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                    capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
-                if r.returncode != 0:
-                    log_fn("Tentando script oficial do Fly.io…")
-                    subprocess.run(
-                        ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
-                         "iwr https://fly.io/install.ps1 -useb | iex"],
-                        capture_output=True, creationflags=NO_WIN)
+            log_fn("Instalando via winget…")
+            r = subprocess.run(
+                ["winget", "install", "-e", "--id", "Fly.flyctl",
+                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
+            if r.returncode != 0:
+                log_fn("Tentando script oficial do Fly.io…")
+                subprocess.run(
+                    ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
+                     "iwr https://fly.io/install.ps1 -useb | iex"],
+                    capture_output=True, creationflags=NO_WIN)
             log_fn("Fly CLI instalado.", "ok")
 
         def _inst_node(log_fn):
-            with _winget_lock:
-                log_fn("Instalando Node.js via winget…")
-                subprocess.run(
-                    ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS",
-                     "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                    capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
+            log_fn("Instalando Node.js via winget…")
+            subprocess.run(
+                ["winget", "install", "-e", "--id", "OpenJS.NodeJS.LTS",
+                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
             log_fn("Node.js instalado.", "ok")
 
         def _inst_git(log_fn):
-            with _winget_lock:
-                log_fn("Instalando Git via winget…")
-                r = subprocess.run(
-                    ["winget", "install", "-e", "--id", "Git.Git",
-                     "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                    capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
-                if r.returncode != 0:
-                    log_fn("Tentando abrir instalador do git-scm.com…")
-                    webbrowser.open("https://git-scm.com/download/win")
-                    log_fn("Instale o Git e clique em Instalar agora para verificar.", "err")
-                    return
+            log_fn("Instalando Git via winget…")
+            r = subprocess.run(
+                ["winget", "install", "-e", "--id", "Git.Git",
+                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+                capture_output=True, text=True, encoding="utf-8", creationflags=NO_WIN)
+            if r.returncode != 0:
+                log_fn("Tentando abrir instalador do git-scm.com…")
+                webbrowser.open("https://git-scm.com/download/win")
+                log_fn("Instale o Git e clique em Instalar agora para verificar.", "err")
+                return
             log_fn("Git instalado.", "ok")
 
         def _chk_fly():
-            if _check(["fly", "version"]):
+            # 1. Tenta pelo PATH (winget coloca lá)
+            if _check(["fly", "version"]) or _check(["flyctl", "version"]):
                 return True
-            # Script PS instala em ~/.fly/bin que pode não estar no PATH após _refresh_path()
-            fly_bin = os.path.join(os.environ.get("USERPROFILE", ""), ".fly", "bin")
-            if os.path.isdir(fly_bin):
-                if fly_bin not in os.environ.get("PATH", ""):
-                    os.environ["PATH"] = fly_bin + ";" + os.environ["PATH"]
-                return _check(["fly", "version"])
+            # 2. Script PS instala em ~/.fly/bin — adiciona ao PATH e tenta novamente
+            up = os.environ.get("USERPROFILE", "")
+            candidates = [
+                os.path.join(up, ".fly", "bin"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "fly", "bin"),
+            ]
+            for fly_bin in candidates:
+                if os.path.isdir(fly_bin):
+                    if fly_bin not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = fly_bin + ";" + os.environ["PATH"]
+                    if _check(["fly", "version"]) or _check(["flyctl", "version"]):
+                        return True
+            # 3. Binário existe no disco mas PATH ainda não atualizado — considera instalado
+            for fly_bin in candidates:
+                for name in ("fly.exe", "flyctl.exe"):
+                    if os.path.isfile(os.path.join(fly_bin, name)):
+                        return True
             return False
 
         _make_row("Fly CLI",  "Publica o backend e o bot",
@@ -673,6 +688,14 @@ class Wizard(tk.Tk):
                   lambda: _check(["node", "--version"]), _inst_node, "Instalar agora")
         _make_row("Git",      "Faz o download e as atualizações do bot",
                   lambda: _check(["git", "--version"]), _inst_git, "Instalar agora")
+
+        # ── Botão de logs (abre popup sob demanda) ────────────────────────────
+        tk.Button(body, text="▸  Ver logs de instalação",
+                  command=_open_logs,
+                  bg=BG, fg=DIM, relief="flat",
+                  font=(FONT, 9), cursor="hand2", anchor="w",
+                  activeforeground=MUTED, activebackground=BG,
+                  ).pack(anchor="w", pady=(10, 0))
 
         # ── Botão "Instalar tudo" ──────────────────────────────────────────────
         # install_all_ref é definido cedo (no topo), _mark_verified já o conhece.
