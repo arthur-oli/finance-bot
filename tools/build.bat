@@ -29,7 +29,7 @@ if not exist assets\icon.ico (
 
 echo.
 echo [1/2] Compilando FinanceBotSetup.exe ...
-pyinstaller --onefile --windowed --uac-admin --name "FinanceBotSetup" --clean --icon assets\icon.ico --add-data "assets\finance-bot-logo.png;assets" wizard\setup_wizard.py
+pyinstaller --onefile --windowed --uac-admin --name "FinanceBotSetup" --clean --icon assets\icon.ico --add-data "assets;assets" wizard\setup_wizard.py
 if not exist dist\FinanceBotSetup.exe (
     echo [ERRO] Build do wizard falhou. Veja o output acima.
     pause ^& exit /b 1

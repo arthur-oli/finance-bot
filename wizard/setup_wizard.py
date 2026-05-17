@@ -15,6 +15,7 @@ import urllib.request
 from PIL import Image, ImageTk
 
 DEMO = "--demo" in sys.argv
+_DEMO_PAGE = next((sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--demo" and i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-")), None)
 
 if sys.platform == "win32":
     import ctypes
@@ -165,7 +166,24 @@ class Wizard(tk.Tk):
         self._info  = {}   # misc runtime info (login emails, etc.)
         if DEMO:
             self._prefill_demo()
-            self._show(self._page_deploy)
+            _pages = {
+                "welcome":          self._page_welcome,
+                "prereqs":          self._page_prereqs,
+                "clone":            self._page_clone,
+                "supabase":         self._page_supabase,
+                "supabase_keys":    self._page_supabase_keys,
+                "supabase_sql":     self._page_supabase_sql,
+                "telegram":         self._page_telegram_bot,
+                "telegram_id":      self._page_telegram_id,
+                "groq":             self._page_groq,
+                "fly":              self._page_fly,
+                "vercel":           self._page_vercel_login,
+                "vercel_password":  self._page_vercel_password,
+                "review":           self._page_review,
+                "deploy":           self._page_deploy,
+            }
+            page_fn = _pages.get(_DEMO_PAGE, self._page_deploy) if _DEMO_PAGE else self._page_deploy
+            self._show(page_fn)
         else:
             self._show(self._page_welcome)
         self._center()
@@ -1116,30 +1134,49 @@ class Wizard(tk.Tk):
                       fg="white" if ok else TEXT)
 
         body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
+        body.pack(fill="both", expand=True, padx=32, pady=(8, 0))
 
-        instr = tk.Frame(body, bg=PANEL, pady=14, padx=16)
-        instr.pack(fill="x")
+        # instruções + QR code lado a lado
+        top = tk.Frame(body, bg=BG)
+        top.pack(fill="x")
+
+        instr = tk.Frame(top, bg=PANEL, pady=8, padx=12)
+        instr.pack(side="left", fill="both", expand=True)
 
         for num, text, url, btn_label in [
             ("1.", "Abra o @BotFather no Telegram, ou procure no aplicativo de celular", "https://t.me/BotFather", "Abrir BotFather"),
-            ("2.", "Envie  /newbot  e siga as instruções\nEscolha qualquer nome de exibição\nO username deve terminar em  bot", None, None),
-            ("3.", "O BotFather vai te enviar um token.\nCopie e cole abaixo.", None, None),
+            ("2.", "Envie  /newbot  e siga as instruções\nEscolha um nome; o username deve terminar em  bot", None, None),
+            ("3.", "O BotFather vai te enviar um token — copie e cole abaixo", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=5, fill="x")
+            row.pack(anchor="w", pady=2, fill="x")
             tk.Label(row, text=num, bg=PANEL, fg=BLUE,
-                     font=(FONT, 10, "bold"), width=3).pack(side="left", anchor="n")
+                     font=(FONT, 9, "bold"), width=3).pack(side="left", anchor="n")
             col = tk.Frame(row, bg=PANEL)
             col.pack(side="left", fill="x")
             tk.Label(col, text=text, bg=PANEL, fg=MUTED,
-                     font=(FONT, 10), justify="left").pack(anchor="w")
+                     font=(FONT, 9), justify="left").pack(anchor="w")
             if url and btn_label:
                 tk.Button(col, text=btn_label + "  →",
                           command=lambda u=url: webbrowser.open(u),
                           bg=PANEL2, fg="white", relief="flat",
-                          font=(FONT, 9, "bold"), padx=10, pady=4,
-                          cursor="hand2").pack(anchor="w", pady=(5, 0))
+                          font=(FONT, 8, "bold"), padx=8, pady=2,
+                          cursor="hand2").pack(anchor="w", pady=(3, 0))
+
+        # QR code
+        qr_frame = tk.Frame(top, bg=PANEL, padx=10, pady=8)
+        qr_frame.pack(side="left", padx=(6, 0))
+        try:
+            _qr = Image.open(_asset("bot_father_qr.png")).convert("RGBA")
+            _qr = _qr.resize((130, 130), Image.LANCZOS)
+            _qr_tk = ImageTk.PhotoImage(_qr)
+            lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
+            lbl.image = _qr_tk
+            lbl.pack()
+        except Exception:
+            pass
+        tk.Label(qr_frame, text="Escanear\ncom o celular", bg=PANEL, fg=DIM,
+                 font=(FONT, 8), justify="center").pack(pady=(4, 0))
 
         v, _, _ = self._field(body, "TELEGRAM_BOT_TOKEN", "Token do bot",
                                hint="Formato:  123456789:ABCdefGHIjklMNOpqr...",
@@ -1148,16 +1185,14 @@ class Wizard(tk.Tk):
         _refresh_nb()
 
         # Dica de uso em grupo
-        tip = tk.Frame(body, bg=PANEL2, pady=10, padx=14)
-        tip.pack(fill="x", pady=(12, 0))
+        tip = tk.Frame(body, bg=PANEL2, pady=6, padx=14)
+        tip.pack(fill="x", pady=(8, 0))
         tk.Label(tip,
-                 text="💡  Quer usar o bot em um grupo do Telegram com vários usuários?",
+                 text="💡  Quer usar o bot em grupo com vários usuários?",
                  bg=PANEL2, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
         tk.Label(tip,
-                 text="No @BotFather, selecione seu bot e acesse:\n"
-                      "Bot Settings  →  Group Privacy  →  Turn off\n"
-                      "Assim o bot consegue ler mensagens dentro de grupos.",
-                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(4, 0))
+                 text="No @BotFather: Bot Settings  →  Group Privacy  →  Turn off",
+                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(2, 0))
 
         return p
 
@@ -1188,47 +1223,65 @@ class Wizard(tk.Tk):
                       fg="white" if ok else TEXT)
 
         body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
+        body.pack(fill="both", expand=True, padx=32, pady=(8, 0))
 
-        instr = tk.Frame(body, bg=PANEL, pady=14, padx=16)
-        instr.pack(fill="x")
+        # instruções + QR code lado a lado
+        top = tk.Frame(body, bg=BG)
+        top.pack(fill="x")
+
+        instr = tk.Frame(top, bg=PANEL, pady=8, padx=12)
+        instr.pack(side="left", fill="both", expand=True)
 
         for num, text, url, btn_label in [
-            ("1.", "Abra o @userinfobot no Telegram", "https://t.me/userinfobot", "Abrir userinfobot"),
-            ("2.", "Envie qualquer mensagem ou clique em START", None, None),
-            ("3.", "Ele vai te responder com seu ID numérico.\nCopie e cole abaixo.", None, None),
+            ("1.", "Abra o @userinfobot no Telegram, ou procure no aplicativo de celular", "https://t.me/userinfobot", "Abrir userinfobot"),
+            ("2.", "Envie qualquer mensagem ou clique em  START", None, None),
+            ("3.", "Ele vai te responder com seu ID numérico — copie e cole abaixo", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=5, fill="x")
+            row.pack(anchor="w", pady=2, fill="x")
             tk.Label(row, text=num, bg=PANEL, fg=BLUE,
-                     font=(FONT, 10, "bold"), width=3).pack(side="left", anchor="n")
+                     font=(FONT, 9, "bold"), width=3).pack(side="left", anchor="n")
             col = tk.Frame(row, bg=PANEL)
             col.pack(side="left", fill="x")
             tk.Label(col, text=text, bg=PANEL, fg=MUTED,
-                     font=(FONT, 10), justify="left").pack(anchor="w")
+                     font=(FONT, 9), justify="left").pack(anchor="w")
             if url and btn_label:
                 tk.Button(col, text=btn_label + "  →",
                           command=lambda u=url: webbrowser.open(u),
                           bg=PANEL2, fg="white", relief="flat",
-                          font=(FONT, 9, "bold"), padx=10, pady=4,
-                          cursor="hand2").pack(anchor="w", pady=(5, 0))
+                          font=(FONT, 8, "bold"), padx=8, pady=2,
+                          cursor="hand2").pack(anchor="w", pady=(3, 0))
 
-        tip = tk.Frame(body, bg=PANEL2, pady=10, padx=14)
-        tip.pack(fill="x", pady=(12, 0))
-        tk.Label(tip,
-                 text="⚠️  Somente os IDs listados aqui conseguem usar o bot.",
-                 bg=PANEL2, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
-        tk.Label(tip,
-                 text="Se outra pessoa tentar mandar mensagem e o ID dela não estiver na lista,\n"
-                      "o bot simplesmente não vai responder.\n"
-                      "Adicione todos os usuários agora, separando os IDs por vírgula.",
-                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(4, 0))
+        # QR code
+        qr_frame = tk.Frame(top, bg=PANEL, padx=10, pady=8)
+        qr_frame.pack(side="left", padx=(6, 0))
+        try:
+            _qr = Image.open(_asset("userinfobot_qr.png")).convert("RGBA")
+            _qr = _qr.resize((130, 130), Image.LANCZOS)
+            _qr_tk = ImageTk.PhotoImage(_qr)
+            lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
+            lbl.image = _qr_tk
+            lbl.pack()
+        except Exception:
+            pass
+        tk.Label(qr_frame, text="Escanear\ncom o celular", bg=PANEL, fg=DIM,
+                 font=(FONT, 8), justify="center").pack(pady=(4, 0))
 
         v, _, _ = self._field(body, "TELEGRAM_USER_IDS", "IDs de usuário (todos que vão usar o bot)",
                                hint="Apenas números, ex: 123456789",
                                validate_fn=_val_uid)
         v.trace_add("write", _refresh_nb)
         _refresh_nb()
+
+        tip = tk.Frame(body, bg=PANEL2, pady=6, padx=14)
+        tip.pack(fill="x", pady=(8, 0))
+        tk.Label(tip,
+                 text="⚠️  Somente os IDs listados aqui conseguem usar o bot.",
+                 bg=PANEL2, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
+        tk.Label(tip,
+                 text="IDs não cadastrados são ignorados. Adicione todos agora, separando por vírgula.",
+                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(2, 0))
+
         return p
 
     # ══════════════════════════════════════════════════════════════════════════
