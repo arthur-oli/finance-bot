@@ -748,29 +748,31 @@ class Wizard(tk.Tk):
             return r.returncode == 0
 
         def _inst_fly(log_fn):
-            log_fn("Instalando Fly CLI via winget…")
-            ok = _winget_run("Fly.flyctl", log_fn)
-            if not ok:
-                log_fn("Método alternativo: script oficial do Fly.io…")
-                r2 = subprocess.run(
-                    ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
-                     "iwr https://fly.io/install.ps1 -useb | iex"],
-                    capture_output=True, text=True, encoding="utf-8",
-                    errors="replace", creationflags=NO_WIN)
-                if r2.returncode == 0:
-                    log_fn("Script do Fly.io: concluído.", "ok")
-                else:
-                    log_fn(f"Script do Fly.io: falhou (código {r2.returncode}).", "err")
-                    out = (r2.stdout or "").strip()
-                    if out:
-                        for line in out.splitlines()[-6:]:
-                            log_fn(f"  {line}")
+            log_fn("Instalando Fly CLI via script oficial do Fly.io…")
+            r2 = subprocess.run(
+                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
+                 "iwr https://fly.io/install.ps1 -useb | iex"],
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", creationflags=NO_WIN)
+            if r2.returncode == 0:
+                log_fn("Script do Fly.io: concluído.", "ok")
+            else:
+                log_fn(f"Script do Fly.io: falhou (código {r2.returncode}).", "err")
+                out = (r2.stdout or "").strip()
+                if out:
+                    for line in out.splitlines()[-6:]:
+                        log_fn(f"  {line}")
             log_fn("Verificando Fly CLI no PATH e em locais de instalação…")
 
         def _inst_node(log_fn):
             log_fn("Instalando Node.js via winget…")
             ok = _winget_run("OpenJS.NodeJS.LTS", log_fn)
             if ok:
+                _refresh_path()
+                for d in [r"C:\Program Files\nodejs",
+                          os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "nodejs")]:
+                    if os.path.isdir(d) and d not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = d + ";" + os.environ["PATH"]
                 log_fn("Verificando Node.js…")
                 v = _check_output(["node", "--version"])
                 log_fn(f"node {v}" if v else "node não encontrado no PATH ainda.", "ok" if v else None)
@@ -783,6 +785,7 @@ class Wizard(tk.Tk):
                 webbrowser.open("https://git-scm.com/download/win")
                 log_fn("Instale o Git manualmente e clique em 'Instalar agora' para verificar.", "err")
                 return
+            _refresh_path()
             log_fn("Verificando Git…")
             v = _check_output(["git", "--version"])
             log_fn(v if v else "git não encontrado no PATH ainda.", "ok" if v else None)
