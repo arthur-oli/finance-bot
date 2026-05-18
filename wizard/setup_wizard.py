@@ -1820,7 +1820,7 @@ class Wizard(tk.Tk):
             return name in r.stdout
 
         def _vercel_env(name, value):
-            proc = _popen(["npx", "vercel", "env", "add", name, "production", "--force"],
+            proc = _popen(["npx", "--yes", "vercel", "env", "add", name, "production", "--force"],
                           cwd=DASHBOARD_DIR)
             try:
                 proc.stdin.write(value)
@@ -1921,7 +1921,7 @@ class Wizard(tk.Tk):
                 ("SESSION_SECRET",     sess_key),
             ]:
                 _vercel_env(name, val)
-            ok, out = _run(["npx", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
+            ok, out = _run(["npx", "--yes", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
             _set_step(2, "done" if ok else "error")
 
             match = re.search(r"https://[^\s]+\.vercel\.app", out)
