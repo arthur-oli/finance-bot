@@ -1537,7 +1537,7 @@ class Wizard(tk.Tk):
         tk.Label(col1, text="Recomendamos entrar com GitHub. Escolha o plano Hobby (gratuito).",
                  bg=PANEL, fg=DIM, font=(FONT, 9)).pack(anchor="w", pady=(4, 0))
         tk.Button(row1, text="Abrir vercel.com  →",
-                  command=lambda: webbrowser.open("https://vercel.com"),
+                  command=lambda: webbrowser.open("https://vercel.com/signup"),
                   bg=BLUE, fg="white", relief="flat",
                   font=(FONT, 9, "bold"), padx=10, pady=6, cursor="hand2").pack(side="right")
 
