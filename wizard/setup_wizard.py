@@ -18,6 +18,9 @@ DEMO = "--demo" in sys.argv
 _DEMO_PAGE = next((sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--demo" and i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-")), None)
 DEMO_FULL = DEMO and _DEMO_PAGE == "full"
 
+_APPDATA = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "FinanceBot")
+_PROGRESS_FILE = os.path.join(_APPDATA, "wizard_progress.json")
+
 if sys.platform == "win32":
     import ctypes
     _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\FinanceBotSetupWizard")
@@ -209,6 +212,54 @@ class Wizard(tk.Tk):
         for k, v in demo_vals.items():
             self._var(k, v)
 
+    # ── Progress persistence ───────────────────────────────────────────────────
+    def _save_progress(self, page_key):
+        if DEMO:
+            return
+        try:
+            os.makedirs(_APPDATA, exist_ok=True)
+            data = {
+                "page": page_key,
+                "vars": {k: v.get() for k, v in self._vars.items()},
+            }
+            with open(_PROGRESS_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+
+    def _load_progress(self):
+        try:
+            with open(_PROGRESS_FILE, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _clear_progress(self):
+        try:
+            os.remove(_PROGRESS_FILE)
+        except Exception:
+            pass
+
+    def _resume(self, saved):
+        for k, v in saved.get("vars", {}).items():
+            self._var(k, v)
+        _page_map = {
+            "_page_prereqs":       self._page_prereqs,
+            "_page_clone":         self._page_clone,
+            "_page_supabase":      self._page_supabase,
+            "_page_supabase_keys": self._page_supabase_keys,
+            "_page_telegram_bot":  self._page_telegram_bot,
+            "_page_telegram_id":   self._page_telegram_id,
+            "_page_groq":          self._page_groq,
+            "_page_fly":           self._page_fly,
+            "_page_vercel_login":  self._page_vercel_login,
+            "_page_vercel_password": self._page_vercel_password,
+            "_page_review":        self._page_review,
+            "_page_deploy":        self._page_deploy,
+        }
+        fn = _page_map.get(saved.get("page"), self._page_prereqs)
+        self._show(fn)
+
     def _center(self):
         self.update_idletasks()
         x = (self.winfo_screenwidth()  - self.W) // 2
@@ -220,6 +271,7 @@ class Wizard(tk.Tk):
             self._frame.destroy()
         self._frame = fn()
         self._frame.pack(fill="both", expand=True)
+        self._save_progress(fn.__name__)
 
     def _var(self, key, default=""):
         if key not in self._vars:
@@ -481,8 +533,21 @@ class Wizard(tk.Tk):
             tk.Label(row, text=icon, bg=PANEL, font=(FONT, 11), width=3).pack(side="left")
             tk.Label(row, text=line, bg=PANEL, fg=MUTED, font=(FONT, 10)).pack(side="left")
 
+        _saved = self._load_progress() if not DEMO else None
+        if _saved:
+            resume_card = tk.Frame(body, bg="#1e3a5f", padx=28, pady=12)
+            resume_card.pack(padx=60, fill="x", pady=(10, 0))
+            tk.Label(resume_card,
+                     text="Instalação anterior encontrada — seus dados foram preservados.",
+                     bg="#1e3a5f", fg="#93c5fd", font=(FONT, 9)).pack(anchor="w")
+            tk.Button(resume_card, text="Retomar onde parei  →",
+                      command=lambda: self._resume(_saved),
+                      bg=BLUE, fg="white", activebackground=BLUE2, activeforeground="white",
+                      relief="flat", font=(FONT, 10, "bold"),
+                      padx=16, pady=7, cursor="hand2").pack(anchor="w", pady=(8, 0))
+
         self._footer(p, next_fn=lambda: self._show(self._page_prereqs),
-                     next_label="Começar  →")
+                     next_label="Começar do zero  →" if _saved else "Começar  →")
         return p
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -1882,6 +1947,7 @@ class Wizard(tk.Tk):
     # Tela 9 — Pronto
     # ══════════════════════════════════════════════════════════════════════════
     def _page_done(self, urls):
+        self._clear_progress()
         p = tk.Frame(self, bg=BG)
         self._header(p, "Tudo pronto! 🎉",
                      "Seu Finance Bot está no ar.", phase=4)

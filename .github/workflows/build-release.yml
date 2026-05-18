@@ -1,0 +1,48 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build dependencies
+        run: |
+          pip install pyinstaller pillow --quiet
+          pip uninstall pathlib -y
+
+      - name: Generate icon
+        run: python tools/generate_icon.py
+
+      - name: Build FinanceBotSetup.exe
+        run: >
+          pyinstaller --onefile --windowed --uac-admin
+          --name "FinanceBotSetup" --clean
+          --icon assets/icon.ico
+          --add-data "assets;assets"
+          wizard/setup_wizard.py
+
+      - name: Build FinanceBotUpdate.exe
+        run: >
+          pyinstaller --onefile --windowed --uac-admin
+          --name "FinanceBotUpdate" --clean
+          --icon assets/icon.ico
+          wizard/updater.py
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/FinanceBotSetup.exe
+            dist/FinanceBotUpdate.exe

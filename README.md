@@ -4,9 +4,41 @@
   <img src="assets/finance-bot-logo.png" width="120" alt="Finance Bot">
 </p>
 
-Bot pessoal de finanças no Telegram com dashboard web. Registre gastos por mensagem ou foto de nota fiscal — a IA classifica automaticamente.
+<p align="center">
+  Bot pessoal de finanças no Telegram com dashboard web.<br>
+  Registre gastos por mensagem ou foto de nota fiscal — a IA classifica automaticamente.<br>
+  Roda 100% em cloud gratuita, sem precisar deixar o PC ligado.
+</p>
 
-Roda 100% em cloud, sem precisar deixar o PC ligado.
+---
+
+## Como funciona
+
+Mande uma mensagem para o bot no Telegram:
+
+> `gastei 50 no mercado`  
+> `paguei 120 de farmácia`
+
+Ou tire uma foto de uma nota fiscal — o bot lê os itens e registra tudo automaticamente.
+
+Acesse o dashboard pelo navegador para ver gráficos, histórico e exportar suas transações em CSV.
+
+## Instalação
+
+Baixe o `FinanceBotSetup.exe` na página de [Releases](https://github.com/arthur-oli/finance-bot/releases) e siga o assistente. Ele cria todas as contas necessárias, configura e publica tudo automaticamente — sem precisar saber programar.
+
+**Tempo estimado: ~15 minutos.**
+
+Para atualizar uma instalação existente, use o `FinanceBotUpdate.exe` da mesma página.
+
+## Funcionalidades
+
+- Registro por texto ou foto de nota fiscal
+- Classificação automática por categoria via IA
+- Dashboard com gráficos por categoria e evolução mensal
+- Histórico completo de transações
+- Suporte a múltiplos usuários
+- Exportação em CSV
 
 ## Stack
 
@@ -16,17 +48,3 @@ Roda 100% em cloud, sem precisar deixar o PC ligado.
 | Dashboard web | [Vercel](https://vercel.com) | Gratuito |
 | Banco de dados | [Supabase](https://supabase.com) | Gratuito |
 | IA (texto + OCR) | [Groq](https://console.groq.com) | Gratuito |
-
-## Instalação
-
-Baixe o wizard na página de [Releases](https://github.com/arthur-oli/finance-bot/releases) e siga as instruções. O assistente cria todas as contas, configura e publica tudo automaticamente (~15 min).
-
-Para atualizar uma instalação existente, use o `FinanceBotUpdate.exe` da mesma página.
-
-## Funcionalidades
-
-- Registro de gastos por texto (`gastei 50 no mercado`) ou foto de nota fiscal
-- Classificação automática por categoria via IA
-- Dashboard com gráficos, metas e histórico
-- Suporte a múltiplos usuários e cartões
-- Exportação de transações em CSV
