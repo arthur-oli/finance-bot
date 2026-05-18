@@ -1294,9 +1294,9 @@ class Wizard(tk.Tk):
 
         for num, text, url, btn_label in [
             ("1.", "Abra o @userinfobot no Telegram, ou procure no aplicativo de celular", "https://t.me/userinfobot", "Abrir userinfobot"),
-            ("2.", "Envie qualquer mensagem ou clique em  START", None, None),
+            ("2.", "Digite  /start", None, None),
             ("3.", "Ele vai te responder com seu ID numérico — copie e cole abaixo", None, None),
-            ("4.", "Repita para todos os usuários que devem ter acesso ao bot", None, None),
+            ("4.", "Repita: clique em  User  e escolha cada usuário que deve ter acesso ao bot", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
             row.pack(anchor="w", pady=2, fill="x")
