@@ -1220,22 +1220,22 @@ class Wizard(tk.Tk):
                           cursor="hand2").pack(anchor="w", pady=(3, 0))
 
         # QR code
-        qr_frame = tk.Frame(top, bg=PANEL, padx=10, pady=8)
+        qr_frame = tk.Frame(top, bg="white", padx=10, pady=8)
         qr_frame.pack(side="left", padx=(6, 0))
         try:
             _qr_raw = Image.open(_asset("qr_botfather.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
-            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
+            _canvas = Image.new("RGBA", (130, 130), (255, 255, 255, 255))
             _ox = (130 - _qr_raw.width) // 2
             _oy = (130 - _qr_raw.height) // 2
             _canvas.paste(_qr_raw, (_ox, _oy))
             _qr_tk = ImageTk.PhotoImage(_canvas)
-            lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
+            lbl = tk.Label(qr_frame, image=_qr_tk, bg="white")
             lbl.image = _qr_tk
             lbl.pack()
         except Exception:
             pass
-        tk.Label(qr_frame, text="Escanear\ncom o celular", bg=PANEL, fg=DIM,
+        tk.Label(qr_frame, text="Escanear\ncom o celular", bg="white", fg=DIM,
                  font=(FONT, 8), justify="center").pack(pady=(4, 0))
 
         v, _, _ = self._field(body, "TELEGRAM_BOT_TOKEN", "Token do bot",
@@ -1314,22 +1314,22 @@ class Wizard(tk.Tk):
                           cursor="hand2").pack(anchor="w", pady=(3, 0))
 
         # QR code
-        qr_frame = tk.Frame(top, bg=PANEL, padx=10, pady=8)
+        qr_frame = tk.Frame(top, bg="white", padx=10, pady=8)
         qr_frame.pack(side="left", padx=(6, 0))
         try:
             _qr_raw = Image.open(_asset("qr_userinfobot.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
-            _canvas = Image.new("RGBA", (130, 130), (30, 41, 59, 255))
+            _canvas = Image.new("RGBA", (130, 130), (255, 255, 255, 255))
             _ox = (130 - _qr_raw.width) // 2
             _oy = (130 - _qr_raw.height) // 2
             _canvas.paste(_qr_raw, (_ox, _oy))
             _qr_tk = ImageTk.PhotoImage(_canvas)
-            lbl = tk.Label(qr_frame, image=_qr_tk, bg=PANEL)
+            lbl = tk.Label(qr_frame, image=_qr_tk, bg="white")
             lbl.image = _qr_tk
             lbl.pack()
         except Exception:
             pass
-        tk.Label(qr_frame, text="Escanear\ncom o celular", bg=PANEL, fg=DIM,
+        tk.Label(qr_frame, text="Escanear\ncom o celular", bg="white", fg=DIM,
                  font=(FONT, 8), justify="center").pack(pady=(4, 0))
 
         v, _, _ = self._field(body, "TELEGRAM_USER_IDS", "IDs de usuário (todos que vão usar o bot)",
