@@ -1382,7 +1382,8 @@ class Wizard(tk.Tk):
         instr.pack(fill="x")
 
         for num, text, url, btn_label in [
-            ("1.", "Crie sua conta gratuita", "https://console.groq.com", "Abrir console.groq.com"),
+            ("1.", "Crie sua conta gratuita — confirme o e-mail de verificação\n"
+                   "(verifique o lixo eletrônico se não receber)", "https://console.groq.com", "Abrir console.groq.com"),
             ("2.", "No menu lateral, clique em  API Keys", "https://console.groq.com/keys", "Abrir API Keys"),
             ("3.", "Clique em  Create API Key, dê um nome (ex: finance-bot)\n"
                    "No campo de validade, selecione  No expiration\n"
