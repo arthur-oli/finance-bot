@@ -1460,7 +1460,7 @@ class Wizard(tk.Tk):
                       "💡  Prefere mais segurança? Crie um cartão virtual com limite de R$ 1 no seu banco.",
                  bg=PANEL, fg=DIM, font=(FONT, 9), justify="left", wraplength=460).pack(anchor="w", pady=(4, 0))
         tk.Button(row1, text="Abrir fly.io  →",
-                  command=lambda: webbrowser.open("https://fly.io"),
+                  command=lambda: webbrowser.open("https://fly.io/app/sign-up"),
                   bg=BLUE, fg="white", relief="flat",
                   font=(FONT, 9, "bold"), padx=10, pady=6, cursor="hand2").pack(side="right")
 
