@@ -1547,13 +1547,13 @@ class Wizard(tk.Tk):
 
         def _login_vercel():
             subprocess.Popen(
-                ["cmd.exe", "/c", "npx vercel login"],
+                ["cmd.exe", "/c", "npx --yes vercel login"],
                 env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             ).wait()
 
         self._login_card(body, "Vercel",
-                         ["cmd.exe", "/c", "npx vercel whoami"],
+                         ["cmd.exe", "/c", "npx --yes vercel whoami"],
                          _login_vercel, _refresh_nb)
 
         tk.Label(body,
