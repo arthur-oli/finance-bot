@@ -1387,6 +1387,7 @@ class Wizard(tk.Tk):
             ("2.", "No menu superior, clique em  API Keys", "https://console.groq.com/keys", "Abrir API Keys"),
             ("3.", "Clique em  Create API Key, dê um nome (ex: finance-bot)\n"
                    "No campo de validade, selecione  No expiration\n"
+                   "Clique em  Submit\n"
                    "⚠️  A chave aparece UMA VEZ SÓ — copie antes de fechar", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
