@@ -1251,7 +1251,7 @@ class Wizard(tk.Tk):
                  text="💡  Quer usar o bot em grupo com vários usuários?",
                  bg=PANEL2, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
         tk.Label(tip,
-                 text="No @BotFather: Bot Settings  →  Group Privacy  →  Turn off",
+                 text="No @BotFather: /mybots  →  Bot Settings  →  Group Privacy  →  Turn off",
                  bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(2, 0))
 
         return p
