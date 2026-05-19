@@ -244,6 +244,7 @@ class Wizard(tk.Tk):
             os.makedirs(_APPDATA, exist_ok=True)
             data = {
                 "page": page_key,
+                "root": ROOT,
                 "vars": {k: v.get() for k, v in self._vars.items()},
             }
             with open(_PROGRESS_FILE, "w", encoding="utf-8") as f:
@@ -266,6 +267,9 @@ class Wizard(tk.Tk):
 
     def _resume(self, saved):
         self._wlog(f"Retomando da página: {saved.get('page', '?')}")
+        if "root" in saved:
+            _set_install_path(saved["root"])
+            self._wlog(f"ROOT restaurado: {saved['root']}")
         for k, v in saved.get("vars", {}).items():
             self._var(k, v)
         _page_map = {
