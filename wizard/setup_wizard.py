@@ -1997,6 +1997,15 @@ class Wizard(tk.Tk):
             _dlog(f"  [DBG] escrevendo vercel.json em {DASHBOARD_DIR}…")
             with open(os.path.join(DASHBOARD_DIR, "vercel.json"), "w") as f:
                 f.write("{}\n")
+            _dlog("  [DBG] linkando projeto no Vercel…")
+            ok_link, _ = _run(["npx", "--yes", "vercel", "link", "--yes"], cwd=DASHBOARD_DIR)
+            _dlog(f"  [DBG] vercel link ok={ok_link}")
+            _proj_json = os.path.join(DASHBOARD_DIR, ".vercel", "project.json")
+            if os.path.exists(_proj_json):
+                with open(_proj_json) as _f:
+                    _dlog(f"  [DBG] .vercel/project.json: {_f.read().strip()}")
+            else:
+                _dlog("  [DBG] .vercel/project.json NAO encontrado após link")
             _dlog("  [DBG] configurando env vars no Vercel…")
             for name, val in [
                 ("BACKEND_URL",        burl),
