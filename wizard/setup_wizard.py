@@ -1997,26 +1997,99 @@ class Wizard(tk.Tk):
             _dlog(f"  [DBG] escrevendo vercel.json em {DASHBOARD_DIR}…")
             with open(os.path.join(DASHBOARD_DIR, "vercel.json"), "w") as f:
                 f.write("{}\n")
-            _dlog("  [DBG] linkando projeto no Vercel…")
-            ok_link, _ = _run(["npx", "--yes", "vercel", "link", "--yes"], cwd=DASHBOARD_DIR)
-            _dlog(f"  [DBG] vercel link ok={ok_link}")
+
+            # 1ª etapa: deploy inicial para criar/linkar o projeto no Vercel
+            _dlog("  [DBG] 1º deploy — criando projeto no Vercel…")
+            ok1, out1 = _run(["npx", "--yes", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
+            _dlog(f"  [DBG] 1º deploy ok={ok1}")
+
+            # Ler projectId do .vercel/project.json criado pelo deploy
             _proj_json = os.path.join(DASHBOARD_DIR, ".vercel", "project.json")
+            project_id = None
             if os.path.exists(_proj_json):
-                with open(_proj_json) as _f:
-                    _dlog(f"  [DBG] .vercel/project.json: {_f.read().strip()}")
+                try:
+                    with open(_proj_json) as _f:
+                        _pdata = json.load(_f)
+                    project_id = _pdata.get("projectId")
+                    _dlog(f"  [DBG] projectId={project_id}")
+                except Exception as _e:
+                    _dlog(f"  [DBG] erro ao ler project.json: {_e}")
             else:
-                _dlog("  [DBG] .vercel/project.json NAO encontrado após link")
-            _dlog("  [DBG] configurando env vars no Vercel…")
-            for name, val in [
-                ("BACKEND_URL",        burl),
-                ("API_SECRET_KEY",     api_key),
-                ("DASHBOARD_PASSWORD", v["DASHBOARD_PASSWORD"]),
-                ("SESSION_SECRET",     sess_key),
+                _dlog("  [DBG] .vercel/project.json NAO encontrado")
+
+            # Ler token de auth do Vercel CLI (salvo no disco após login)
+            vercel_token = None
+            for _tp in [
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.vercel.cli", "auth.json"),
+                os.path.join(os.environ.get("APPDATA", ""), "com.vercel.cli", "auth.json"),
             ]:
-                _vercel_env(name, val)
-            _dlog("  [DBG] rodando npx vercel --prod…")
-            ok, out = _run(["npx", "--yes", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
-            _dlog(f"  [DBG] vercel deploy ok={ok}")
+                if os.path.exists(_tp):
+                    try:
+                        with open(_tp) as _f:
+                            vercel_token = json.load(_f).get("token")
+                        _dlog(f"  [DBG] token Vercel lido de {_tp}")
+                        break
+                    except Exception:
+                        pass
+            if not vercel_token:
+                _dlog("  [DBG] token Vercel NAO encontrado — vars serao configuradas manualmente")
+
+            # Setar env vars via REST API (sem CLI, sem travamento)
+            if project_id and vercel_token:
+                _dlog("  [DBG] configurando env vars via API…")
+                env_vars = [
+                    ("BACKEND_URL",        burl),
+                    ("API_SECRET_KEY",     api_key),
+                    ("DASHBOARD_PASSWORD", v["DASHBOARD_PASSWORD"]),
+                    ("SESSION_SECRET",     sess_key),
+                ]
+                for _name, _val in env_vars:
+                    try:
+                        _url = f"https://api.vercel.com/v10/projects/{project_id}/env"
+                        _body = json.dumps([{
+                            "key": _name, "value": _val,
+                            "target": ["production"], "type": "plain"
+                        }]).encode()
+                        _req = urllib.request.Request(_url, data=_body, method="POST")
+                        _req.add_header("Authorization", f"Bearer {vercel_token}")
+                        _req.add_header("Content-Type", "application/json")
+                        with urllib.request.urlopen(_req, timeout=15) as _resp:
+                            _dlog(f"  {_name}: OK (HTTP {_resp.status})")
+                    except urllib.error.HTTPError as _he:
+                        _rbody = _he.read().decode(errors="replace")
+                        if _he.code == 409:
+                            # Já existe — atualizar via PATCH
+                            try:
+                                _gurl = f"https://api.vercel.com/v9/projects/{project_id}/env"
+                                _greq = urllib.request.Request(_gurl)
+                                _greq.add_header("Authorization", f"Bearer {vercel_token}")
+                                with urllib.request.urlopen(_greq, timeout=15) as _gr:
+                                    _envs = json.loads(_gr.read()).get("envs", [])
+                                _eid = next((e["id"] for e in _envs if e["key"] == _name), None)
+                                if _eid:
+                                    _purl = f"https://api.vercel.com/v9/projects/{project_id}/env/{_eid}"
+                                    _pbody = json.dumps({"value": _val, "target": ["production"]}).encode()
+                                    _preq = urllib.request.Request(_purl, data=_pbody, method="PATCH")
+                                    _preq.add_header("Authorization", f"Bearer {vercel_token}")
+                                    _preq.add_header("Content-Type", "application/json")
+                                    with urllib.request.urlopen(_preq, timeout=15) as _pr:
+                                        _dlog(f"  {_name}: atualizado (HTTP {_pr.status})")
+                                else:
+                                    _dlog(f"  {_name}: 409 mas ID nao encontrado")
+                            except Exception as _pe:
+                                _dlog(f"  {_name}: erro no PATCH — {_pe}")
+                        else:
+                            _dlog(f"  {_name}: ERRO HTTP {_he.code} — {_rbody[:200]}", "err")
+                    except Exception as _ex:
+                        _dlog(f"  {_name}: ERRO — {_ex}", "err")
+
+                # 2ª etapa: redeploy com as env vars já configuradas
+                _dlog("  [DBG] 2º deploy — com env vars configuradas…")
+                ok, out = _run(["npx", "--yes", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
+                _dlog(f"  [DBG] 2º deploy ok={ok}")
+            else:
+                ok, out = ok1, out1
+
             _set_step(2, "done" if ok else "error")
 
             match = re.search(r"https://[^\s]+\.vercel\.app", out)
