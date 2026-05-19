@@ -1800,12 +1800,12 @@ class Wizard(tk.Tk):
         def _run(args, cwd=None, stdin_val=None):
             proc = _popen(args, cwd=cwd)
             out_lines = []
-            if stdin_val is not None:
-                try:
+            try:
+                if stdin_val is not None:
                     proc.stdin.write(stdin_val)
-                    proc.stdin.close()
-                except Exception:
-                    pass
+                proc.stdin.close()
+            except Exception:
+                pass
             for line in proc.stdout:
                 line = line.rstrip()
                 out_lines.append(line)
