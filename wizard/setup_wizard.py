@@ -1799,22 +1799,37 @@ class Wizard(tk.Tk):
 
         # ── Log em arquivo ────────────────────────────────────────────────────
         import datetime as _dt
-        _LOG_FILE = os.path.join(APPDATA_DIR, "deploy.log")
-        try:
-            os.makedirs(APPDATA_DIR, exist_ok=True)
-            _lf = open(_LOG_FILE, "a", encoding="utf-8")
-            _lf.write(f"\n{'='*60}\n{_dt.datetime.now():%Y-%m-%d %H:%M:%S} — deploy iniciado\n{'='*60}\n")
-        except Exception:
-            _lf = None
+        _log_candidates = [
+            os.path.join(APPDATA_DIR, "deploy.log"),
+            os.path.join(os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+                         else os.path.dirname(os.path.abspath(__file__)), "deploy.log"),
+        ]
 
-        def _dlog(msg, tag=None):
-            try:
-                if _lf:
-                    _lf.write(msg + "\n")
-                    _lf.flush()
-            except Exception:
-                pass
-            self.after(0, lambda m=msg, t=tag: _log(m, t))
+        def _dlog(msg, tag=None, _ui=True):
+            ts = _dt.datetime.now().strftime("%H:%M:%S")
+            for path in _log_candidates:
+                try:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, "a", encoding="utf-8") as f:
+                        f.write(f"[{ts}] {msg}\n")
+                    break
+                except Exception:
+                    continue
+            if _ui:
+                self.after(0, lambda m=msg, t=tag: _log(m, t))
+
+        # Log inicial ao carregar a página
+        _dlog(f"{'='*60}", _ui=False)
+        _dlog(f"Página de deploy carregada — {_dt.datetime.now():%Y-%m-%d %H:%M:%S}", _ui=False)
+        _dlog(f"ROOT={ROOT}", _ui=False)
+        _dlog(f"APPDATA_DIR={APPDATA_DIR}", _ui=False)
+        _dlog(f"BACKEND_DIR={BACKEND_DIR}", _ui=False)
+        _dlog(f"DASHBOARD_DIR={DASHBOARD_DIR}", _ui=False)
+        # Mostra caminho do log na UI
+        _log_path_used = next((p for p in _log_candidates
+                               if os.path.exists(os.path.dirname(p)) or
+                               not os.path.dirname(p)), _log_candidates[0])
+        self.after(0, lambda: _log(f"  [LOG] {_log_path_used}"))
 
         def _run(args, cwd=None, stdin_val=None):
             cmd_str = " ".join(str(a) for a in args)
