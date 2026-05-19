@@ -147,6 +147,25 @@ class Wizard(tk.Tk):
     # sub-steps within "Conectar contas"
     PROVIDERS = ["Supabase", "Telegram", "Groq", "Fly.io", "Vercel"]
 
+    _LOG_CANDIDATES = [
+        os.path.join(APPDATA_DIR, "wizard.log"),
+        os.path.join(os.path.dirname(sys.executable)
+                     if getattr(sys, "frozen", False)
+                     else os.path.dirname(os.path.abspath(__file__)), "wizard.log"),
+    ]
+
+    def _wlog(self, msg):
+        import datetime as _wdt
+        ts = _wdt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for path in self._LOG_CANDIDATES:
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(f"[{ts}] {msg}\n")
+                break
+            except Exception:
+                continue
+
     def __init__(self):
         super().__init__()
         self.withdraw()
@@ -165,6 +184,11 @@ class Wizard(tk.Tk):
         self._frame = None
         self._vars  = {}   # StringVar per field key
         self._info  = {}   # misc runtime info (login emails, etc.)
+        import datetime as _idt
+        self._wlog("=" * 60)
+        self._wlog(f"Wizard iniciado — {_idt.datetime.now():%Y-%m-%d %H:%M:%S}")
+        self._wlog(f"ROOT={ROOT}  APPDATA={APPDATA_DIR}")
+        self._wlog(f"Log em: {self._LOG_CANDIDATES[0]}")
         if DEMO:
             _demo_bar = tk.Frame(self, bg="#7c3aed", height=22)
             _demo_bar.pack(side="bottom", fill="x")
@@ -241,6 +265,7 @@ class Wizard(tk.Tk):
             pass
 
     def _resume(self, saved):
+        self._wlog(f"Retomando da página: {saved.get('page', '?')}")
         for k, v in saved.get("vars", {}).items():
             self._var(k, v)
         _page_map = {
@@ -269,6 +294,7 @@ class Wizard(tk.Tk):
     def _show(self, fn):
         if self._frame:
             self._frame.destroy()
+        self._wlog(f"→ {fn.__name__}")
         self._frame = fn()
         self._frame.pack(fill="both", expand=True)
         self._save_progress(fn.__name__)
@@ -731,7 +757,7 @@ class Wizard(tk.Tk):
             all_do_fns.append(_do)
 
         def _winget_run(pkg_id, log_fn):
-            """Roda winget e loga resultado. Retorna True se sucesso."""
+            self._wlog(f"winget install {pkg_id}")
             r = subprocess.run(
                 ["winget", "install", "-e", "--id", pkg_id,
                  "--accept-source-agreements", "--accept-package-agreements", "--silent"],
@@ -743,11 +769,13 @@ class Wizard(tk.Tk):
                 log_fn(f"winget: falhou (código {r.returncode}).", "err")
                 out = (r.stdout or "").strip()
                 if out:
-                    for line in out.splitlines()[-6:]:   # últimas 6 linhas do output
+                    for line in out.splitlines()[-6:]:
                         log_fn(f"  {line}")
+            self._wlog(f"winget {pkg_id} rc={r.returncode}")
             return r.returncode == 0
 
         def _inst_fly(log_fn):
+            self._wlog("_inst_fly: iniciando")
             log_fn("Instalando Fly CLI via script oficial do Fly.io…")
             r2 = subprocess.run(
                 ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
@@ -762,9 +790,11 @@ class Wizard(tk.Tk):
                 if out:
                     for line in out.splitlines()[-6:]:
                         log_fn(f"  {line}")
+            self._wlog(f"_inst_fly: rc={r2.returncode}")
             log_fn("Verificando Fly CLI no PATH e em locais de instalação…")
 
         def _inst_node(log_fn):
+            self._wlog("_inst_node: iniciando")
             log_fn("Instalando Node.js via winget…")
             ok = _winget_run("OpenJS.NodeJS.LTS", log_fn)
             if ok:
@@ -776,8 +806,10 @@ class Wizard(tk.Tk):
                 log_fn("Verificando Node.js…")
                 v = _check_output(["node", "--version"])
                 log_fn(f"node {v}" if v else "node não encontrado no PATH ainda.", "ok" if v else None)
+                self._wlog(f"_inst_node: node version={v}")
 
         def _inst_git(log_fn):
+            self._wlog("_inst_git: iniciando")
             log_fn("Instalando Git via winget…")
             ok = _winget_run("Git.Git", log_fn)
             if not ok:
@@ -1797,39 +1829,14 @@ class Wizard(tk.Tk):
                 card_note[i].config(text=note, fg=fg),
             ))
 
-        # ── Log em arquivo ────────────────────────────────────────────────────
-        import datetime as _dt
-        _log_candidates = [
-            os.path.join(APPDATA_DIR, "deploy.log"),
-            os.path.join(os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
-                         else os.path.dirname(os.path.abspath(__file__)), "deploy.log"),
-        ]
-
         def _dlog(msg, tag=None, _ui=True):
-            ts = _dt.datetime.now().strftime("%H:%M:%S")
-            for path in _log_candidates:
-                try:
-                    os.makedirs(os.path.dirname(path), exist_ok=True)
-                    with open(path, "a", encoding="utf-8") as f:
-                        f.write(f"[{ts}] {msg}\n")
-                    break
-                except Exception:
-                    continue
+            self._wlog(msg)
             if _ui:
                 self.after(0, lambda m=msg, t=tag: _log(m, t))
 
-        # Log inicial ao carregar a página
-        _dlog(f"{'='*60}", _ui=False)
-        _dlog(f"Página de deploy carregada — {_dt.datetime.now():%Y-%m-%d %H:%M:%S}", _ui=False)
-        _dlog(f"ROOT={ROOT}", _ui=False)
-        _dlog(f"APPDATA_DIR={APPDATA_DIR}", _ui=False)
-        _dlog(f"BACKEND_DIR={BACKEND_DIR}", _ui=False)
-        _dlog(f"DASHBOARD_DIR={DASHBOARD_DIR}", _ui=False)
-        # Mostra caminho do log na UI
-        _log_path_used = next((p for p in _log_candidates
-                               if os.path.exists(os.path.dirname(p)) or
-                               not os.path.dirname(p)), _log_candidates[0])
-        self.after(0, lambda: _log(f"  [LOG] {_log_path_used}"))
+        self._wlog(f"BACKEND_DIR={BACKEND_DIR}")
+        self._wlog(f"DASHBOARD_DIR={DASHBOARD_DIR}")
+        self.after(0, lambda: _log(f"  [LOG] {self._LOG_CANDIDATES[0]}"))
 
         def _run(args, cwd=None, stdin_val=None):
             cmd_str = " ".join(str(a) for a in args)
