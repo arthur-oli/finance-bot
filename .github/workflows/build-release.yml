@@ -43,6 +43,21 @@ jobs:
           --icon assets/icon.ico
           wizard/updater.py
 
+      - name: Sign executables
+        shell: pwsh
+        run: |
+          $certBytes = [Convert]::FromBase64String("${{ secrets.CODE_SIGNING_CERT }}")
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+            $certBytes, "${{ secrets.CODE_SIGNING_PASSWORD }}",
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet
+          )
+          $store = New-Object System.Security.Cryptography.X509Certificates.X509Store("My", "CurrentUser")
+          $store.Open("ReadWrite")
+          $store.Add($cert)
+          $store.Close()
+          Set-AuthenticodeSignature -FilePath "dist\FinanceBotSetup.exe" -Certificate $cert -HashAlgorithm SHA256
+          Set-AuthenticodeSignature -FilePath "dist\FinanceBotUpdate.exe" -Certificate $cert -HashAlgorithm SHA256
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
