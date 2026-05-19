@@ -1797,7 +1797,28 @@ class Wizard(tk.Tk):
                 card_note[i].config(text=note, fg=fg),
             ))
 
+        # ── Log em arquivo ────────────────────────────────────────────────────
+        import datetime as _dt
+        _LOG_FILE = os.path.join(APPDATA_DIR, "deploy.log")
+        try:
+            os.makedirs(APPDATA_DIR, exist_ok=True)
+            _lf = open(_LOG_FILE, "a", encoding="utf-8")
+            _lf.write(f"\n{'='*60}\n{_dt.datetime.now():%Y-%m-%d %H:%M:%S} — deploy iniciado\n{'='*60}\n")
+        except Exception:
+            _lf = None
+
+        def _dlog(msg, tag=None):
+            try:
+                if _lf:
+                    _lf.write(msg + "\n")
+                    _lf.flush()
+            except Exception:
+                pass
+            self.after(0, lambda m=msg, t=tag: _log(m, t))
+
         def _run(args, cwd=None, stdin_val=None):
+            cmd_str = " ".join(str(a) for a in args)
+            _dlog(f"  [CMD] {cmd_str}")
             proc = _popen(args, cwd=cwd)
             out_lines = []
             try:
@@ -1810,16 +1831,20 @@ class Wizard(tk.Tk):
                 line = line.rstrip()
                 out_lines.append(line)
                 tag = "err" if re.search(r"\b(error|failed|fatal)\b", line, re.I) else None
-                self.after(0, lambda l=line, t=tag: _log(l, t))
+                _dlog(line, tag)
             proc.wait()
+            _dlog(f"  [RET] código={proc.returncode}")
             return proc.returncode == 0, "\n".join(out_lines)
 
         def _fly_exists(name):
+            _dlog(f"  [DBG] verificando se app '{name}' existe no Fly…")
             r = subprocess.run(["fly", "apps", "list"], capture_output=True,
                                text=True, encoding="utf-8", creationflags=NO_WIN)
+            _dlog(f"  [DBG] fly apps list rc={r.returncode}, found={name in r.stdout}")
             return name in r.stdout
 
         def _vercel_env(name, value):
+            _dlog(f"  [CMD] npx --yes vercel env add {name} production --force")
             proc = _popen(["npx", "--yes", "vercel", "env", "add", name, "production", "--force"],
                           cwd=DASHBOARD_DIR)
             try:
@@ -1827,9 +1852,12 @@ class Wizard(tk.Tk):
                 proc.stdin.close()
             except Exception:
                 pass
-            proc.stdout.read()
+            out = proc.stdout.read()
             proc.wait()
-            self.after(0, lambda: _log(f"  {name}: {'OK' if proc.returncode == 0 else 'ERRO'}"))
+            status = 'OK' if proc.returncode == 0 else 'ERRO'
+            _dlog(f"  {name}: {status} (rc={proc.returncode})")
+            if out.strip():
+                _dlog(f"    {out.strip()}")
 
         def deploy():
             if DEMO:
@@ -1857,18 +1885,30 @@ class Wizard(tk.Tk):
             botapp   = v["BOT_APP"]
             burl     = f"https://{bapp}.fly.dev"
 
+            _dlog(f"  [DBG] ROOT={ROOT}")
+            _dlog(f"  [DBG] BACKEND_DIR={BACKEND_DIR}")
+            _dlog(f"  [DBG] DASHBOARD_DIR={DASHBOARD_DIR}")
+            _dlog(f"  [DBG] bapp={bapp}  botapp={botapp}")
+
             _set_step(0, "running")
-            self.after(0, lambda: _log("\n── Servidor principal ──", "hdr"))
+            _dlog("\n── Servidor principal ──", "hdr")
+            _dlog(f"  [DBG] atualizando {BACKEND_TOML}…")
             _update_toml(BACKEND_TOML, bapp)
-            if not _fly_exists(bapp):
+            _dlog("  [DBG] toml atualizado")
+            exists = _fly_exists(bapp)
+            if not exists:
                 _run(["fly", "apps", "create", bapp])
             # Copy schema.sql into backend dir so Docker COPY picks it up
             import shutil as _shutil
-            if os.path.exists(SCHEMA_SQL):
+            schema_copied = os.path.exists(SCHEMA_SQL)
+            _dlog(f"  [DBG] schema.sql existe={schema_copied}")
+            if schema_copied:
                 _shutil.copy2(SCHEMA_SQL, os.path.join(BACKEND_DIR, "schema.sql"))
             proj_ref = v.get("SUPABASE_PROJECT_ID", "").strip()
             db_password = v.get("SUPABASE_DB_PASSWORD", "").strip()
             db_url = f"postgresql://postgres:{db_password}@db.{proj_ref}.supabase.co:5432/postgres"
+            _dlog(f"  [DBG] proj_ref={proj_ref!r}  db_url_prefix=postgresql://postgres:***@db.{proj_ref}…")
+            _dlog("  [DBG] rodando fly secrets set (backend)…")
             ok, _ = _run([
                 "fly", "secrets", "set",
                 f"SUPABASE_URL={v['SUPABASE_URL']}",
@@ -1877,21 +1917,28 @@ class Wizard(tk.Tk):
                 f"API_SECRET_KEY={api_key}",
                 "--app", bapp,
             ], cwd=BACKEND_DIR)
+            _dlog(f"  [DBG] secrets set backend ok={ok}")
             if not ok:
                 _set_step(0, "error")
                 return
+            _dlog("  [DBG] rodando fly deploy (backend)…")
             ok, _ = _run(["fly", "deploy", "--app", bapp, "--wait-timeout", "180"],
                          cwd=BACKEND_DIR)
+            _dlog(f"  [DBG] fly deploy backend ok={ok}")
             _set_step(0, "done" if ok else "error")
             if not ok:
                 return
 
             _set_step(1, "running")
-            self.after(0, lambda: _log("\n── Bot do Telegram ──", "hdr"))
+            _dlog("\n── Bot do Telegram ──", "hdr")
+            _dlog(f"  [DBG] atualizando {BOT_TOML}…")
             _update_toml(BOT_TOML, botapp,
                          [(r'BACKEND_URL\s*=.*', f'BACKEND_URL = "{burl}"')])
+            _dlog("  [DBG] toml bot atualizado")
+            _fly_exists(botapp)  # logged inside
             if not _fly_exists(botapp):
                 _run(["fly", "apps", "create", botapp])
+            _dlog("  [DBG] rodando fly secrets set (bot)…")
             ok, _ = _run([
                 "fly", "secrets", "set",
                 f"TELEGRAM_BOT_TOKEN={v['TELEGRAM_BOT_TOKEN']}",
@@ -1901,19 +1948,24 @@ class Wizard(tk.Tk):
                 f"GROQ_API_KEY={v['GROQ_API_KEY']}",
                 "--app", botapp,
             ], cwd=ROOT)
+            _dlog(f"  [DBG] secrets set bot ok={ok}")
             if not ok:
                 _set_step(1, "error")
                 return
+            _dlog("  [DBG] rodando fly deploy (bot)…")
             ok, _ = _run(["fly", "deploy", "--app", botapp, "--wait-timeout", "180"],
                          cwd=ROOT)
+            _dlog(f"  [DBG] fly deploy bot ok={ok}")
             _set_step(1, "done" if ok else "error")
             if not ok:
                 return
 
             _set_step(2, "running")
-            self.after(0, lambda: _log("\n── Painel web ──", "hdr"))
+            _dlog("\n── Painel web ──", "hdr")
+            _dlog(f"  [DBG] escrevendo vercel.json em {DASHBOARD_DIR}…")
             with open(os.path.join(DASHBOARD_DIR, "vercel.json"), "w") as f:
                 f.write("{}\n")
+            _dlog("  [DBG] configurando env vars no Vercel…")
             for name, val in [
                 ("BACKEND_URL",        burl),
                 ("API_SECRET_KEY",     api_key),
@@ -1921,7 +1973,9 @@ class Wizard(tk.Tk):
                 ("SESSION_SECRET",     sess_key),
             ]:
                 _vercel_env(name, val)
+            _dlog("  [DBG] rodando npx vercel --prod…")
             ok, out = _run(["npx", "--yes", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
+            _dlog(f"  [DBG] vercel deploy ok={ok}")
             _set_step(2, "done" if ok else "error")
 
             match = re.search(r"https://[^\s]+\.vercel\.app", out)
