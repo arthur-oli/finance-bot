@@ -1874,12 +1874,18 @@ class Wizard(tk.Tk):
             proc = _popen(["npx", "--yes", "vercel", "env", "add", name, "production", "--force"],
                           cwd=DASHBOARD_DIR)
             try:
-                proc.stdin.write(value)
-                proc.stdin.close()
-            except Exception:
-                pass
-            out = proc.stdout.read()
-            proc.wait()
+                out, _ = proc.communicate(input=value + "\n", timeout=60)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                try:
+                    out, _ = proc.communicate()
+                except Exception:
+                    out = ""
+                _dlog(f"  {name}: TIMEOUT — processo encerrado (vercel env add travou)")
+                return
+            except Exception as exc:
+                _dlog(f"  {name}: EXCEÇÃO — {exc}")
+                return
             status = 'OK' if proc.returncode == 0 else 'ERRO'
             _dlog(f"  {name}: {status} (rc={proc.returncode})")
             if out.strip():
