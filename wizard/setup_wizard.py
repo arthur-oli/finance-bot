@@ -211,6 +211,10 @@ class Wizard(tk.Tk):
                 "vercel_password":  self._page_vercel_password,
                 "review":           self._page_review,
                 "deploy":           self._page_deploy,
+                "done":             lambda: self._page_done({
+                                        "backend":   "https://finance-api-demo.fly.dev",
+                                        "dashboard": "https://finance-bot-demo.vercel.app",
+                                    }),
             }
             page_fn = _pages.get(_DEMO_PAGE, self._page_deploy) if _DEMO_PAGE and not DEMO_FULL else self._page_welcome
             self._show(page_fn)
@@ -2221,6 +2225,7 @@ class Wizard(tk.Tk):
                      "Seu Finance Bot está no ar.", phase=4)
 
         _dash_url = urls.get("dashboard", "") or ("https://finance-bot-demo.vercel.app" if DEMO else "")
+        _backend_url = urls.get("backend", "")
         _pw = self._var("DASHBOARD_PASSWORD").get()
 
         def _copy_pw():
@@ -2244,35 +2249,92 @@ class Wizard(tk.Tk):
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(16, 0))
 
-        for icon, label, url_key in [
+        # ── Health check card ─────────────────────────────────────────────────
+        if _backend_url:
+            hcard = tk.Frame(body, bg=PANEL, pady=10, padx=16)
+            hcard.pack(fill="x", pady=(0, 8))
+            hrow = tk.Frame(hcard, bg=PANEL)
+            hrow.pack(fill="x")
+            h_icon = tk.Label(hrow, text="⏳", bg=PANEL, font=(FONT, 13), width=3)
+            h_icon.pack(side="left")
+            h_info = tk.Frame(hrow, bg=PANEL)
+            h_info.pack(side="left", fill="x", expand=True)
+            h_title = tk.Label(h_info, text="Verificando backend…", bg=PANEL,
+                               fg=MUTED, font=(FONT, 10, "bold"))
+            h_title.pack(anchor="w")
+            h_sub = tk.Label(h_info, text=_backend_url, bg=PANEL,
+                             fg=DIM, font=(FONT, 8))
+            h_sub.pack(anchor="w")
+            h_retry = tk.Button(hrow, text="↺ Testar", bg=PANEL2, fg=MUTED,
+                                relief="flat", font=(FONT, 9), padx=8, pady=4,
+                                cursor="hand2")
+            h_retry.pack(side="right")
+
+            def _do_health():
+                h_icon.config(text="⏳"); h_title.config(text="Verificando backend…", fg=MUTED)
+                h_retry.config(state="disabled")
+                def _check():
+                    try:
+                        import urllib.request
+                        url = (_backend_url.rstrip("/") + "/health") if not DEMO else None
+                        if DEMO:
+                            import time; time.sleep(1.2)
+                            ok, detail = True, "200 OK"
+                        else:
+                            req = urllib.request.urlopen(url, timeout=12)
+                            ok, detail = req.status == 200, f"{req.status} OK"
+                    except Exception as e:
+                        ok, detail = False, str(e)[:60]
+                    def _upd():
+                        if ok:
+                            h_icon.config(text="✅", fg=GREEN)
+                            h_title.config(text="Backend online — tudo funcionando", fg=GREEN)
+                            h_sub.config(text=detail, fg=DIM)
+                        else:
+                            h_icon.config(text="⚠️", fg=YELLOW)
+                            h_title.config(text="Backend demorou a responder", fg=YELLOW)
+                            h_sub.config(text=detail or "Pode levar até 1 min para iniciar após o deploy", fg=DIM)
+                        h_retry.config(state="normal")
+                    self.after(0, _upd)
+                threading.Thread(target=_check, daemon=True).start()
+
+            h_retry.config(command=_do_health)
+            self.after(800, _do_health)
+
+        url_row = tk.Frame(body, bg=BG)
+        url_row.pack(fill="x", pady=(0, 4))
+        for col_idx, (icon, label, url_key) in enumerate([
             ("🌐", "Painel web", "dashboard"),
-            ("⚙️", "Backend (raramente necessário)", "backend"),
-        ]:
+            ("⚙️", "Backend", "backend"),
+        ]):
             url = urls.get(url_key, "")
             if not url:
                 continue
-            card = tk.Frame(body, bg=PANEL, pady=12, padx=18)
-            card.pack(fill="x", pady=3)
+            col = tk.Frame(url_row, bg=BG)
+            col.pack(side="left", fill="x", expand=True,
+                     padx=(0, 8) if col_idx == 0 else (8, 0))
+            card = tk.Frame(col, bg=PANEL, pady=10, padx=14)
+            card.pack(fill="x")
             tk.Label(card, text=f"{icon}  {label}", bg=PANEL, fg=MUTED,
                      font=(FONT, 9)).pack(anchor="w")
-            row = tk.Frame(card, bg=PANEL)
-            row.pack(anchor="w", pady=(4, 0), fill="x")
-            tk.Label(row, text=url, bg=PANEL, fg=GREEN,
-                     font=("Consolas", 10)).pack(side="left")
+            url_lbl = tk.Label(card, text=url, bg=PANEL, fg=GREEN,
+                               font=("Consolas", 9), wraplength=290, justify="left")
+            url_lbl.pack(anchor="w", pady=(3, 0))
+            btns = tk.Frame(card, bg=PANEL)
+            btns.pack(anchor="w", pady=(6, 0))
             def _copy(u=url):
-                self.clipboard_clear()
-                self.clipboard_append(u)
-            tk.Button(row, text="Copiar", command=_copy,
-                      bg=PANEL2, fg=MUTED, relief="flat",
-                      font=(FONT, 8), padx=8, pady=3, cursor="hand2").pack(side="right")
-            tk.Button(card, text="Abrir no navegador",
+                self.clipboard_clear(); self.clipboard_append(u)
+            tk.Button(btns, text="Abrir  →",
                       command=lambda u=url: webbrowser.open(u),
                       bg=BLUE, fg="white", relief="flat",
                       font=(FONT, 9, "bold"), padx=10, pady=4,
-                      cursor="hand2").pack(anchor="w", pady=(6, 0))
+                      cursor="hand2").pack(side="left", padx=(0, 6))
+            tk.Button(btns, text="Copiar", command=_copy,
+                      bg=PANEL2, fg=MUTED, relief="flat",
+                      font=(FONT, 8), padx=8, pady=4, cursor="hand2").pack(side="left")
 
         tk.Label(body, text="Próximos passos:", bg=BG, fg=TEXT,
-                 font=(FONT, 11, "bold")).pack(anchor="w", pady=(16, 6))
+                 font=(FONT, 11, "bold")).pack(anchor="w", pady=(10, 4))
         for num, step in [
             ("1", "Abra o Telegram, encontre seu bot pelo nome e clique em START"),
             ("2", "Mande uma mensagem como:  gastei 50 reais no mercado"),
