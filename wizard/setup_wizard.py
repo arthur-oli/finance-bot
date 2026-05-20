@@ -141,7 +141,7 @@ def _set_install_path(path):
 
 # ── Wizard ────────────────────────────────────────────────────────────────────
 class Wizard(tk.Tk):
-    W, H = 780, 600
+    W, H = 780, 640
     # 5 phases shown in step bar
     PHASES = ["Preparar", "Conectar contas", "Revisar", "Publicar", "Pronto"]
     # sub-steps within "Conectar contas"
@@ -1399,11 +1399,8 @@ class Wizard(tk.Tk):
         tip = tk.Frame(body, bg=PANEL2, pady=6, padx=14)
         tip.pack(fill="x", pady=(8, 0))
         tk.Label(tip,
-                 text="⚠️  Somente os IDs listados aqui conseguem usar o bot.",
-                 bg=PANEL2, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
-        tk.Label(tip,
-                 text="IDs não cadastrados são ignorados. Adicione todos agora, separando por vírgula.",
-                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w", pady=(2, 0))
+                 text="💡  Para usar o bot em grupo: peça o ID de cada pessoa no @userinfobot e separe por vírgula.",
+                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w")
 
         return p
 
@@ -1486,7 +1483,12 @@ class Wizard(tk.Tk):
                 return True, "✓  Nome válido"
             return False, "✗  Use letras minúsculas, números e hífen (4–30 caracteres)"
 
-        fly_ok = [False]
+        fly_ok    = [False]
+        # None = não verificado, True = disponível/próprio, False = conflito
+        avail     = [None, None]
+        deb_ids   = [None, None]
+        avail_lbl = [None, None]
+
         nb = self._footer(p,
                           back_fn=lambda: self._show(self._page_groq),
                           next_fn=lambda: self._show(self._page_vercel_login),
@@ -1495,16 +1497,50 @@ class Wizard(tk.Tk):
         def _refresh_nb(*_):
             ok1, _ = _val_name(self._var("BACKEND_APP").get())
             ok2, _ = _val_name(self._var("BOT_APP").get())
-            ok = fly_ok[0] and ok1 and ok2
+            avail_ok = all(a is not False for a in avail)
+            ok = fly_ok[0] and ok1 and ok2 and avail_ok
             nb.config(state="normal" if ok else "disabled",
                       bg=BLUE if ok else PANEL2,
                       fg="white" if ok else MUTED)
+
+        def _check_avail(idx, name):
+            """Verifica se o nome já existe na conta do usuário (pode ser reutilizado)."""
+            name = name.strip()
+            if not fly_ok[0] or not re.match(r'^[a-z0-9][a-z0-9-]{2,28}[a-z0-9]$', name):
+                return
+            self.after(0, lambda: avail_lbl[idx].config(text="⏳ verificando…", fg=DIM))
+            r = subprocess.run(["fly", "apps", "list"], capture_output=True,
+                                text=True, encoding="utf-8", creationflags=NO_WIN, timeout=15)
+            if name in (r.stdout or ""):
+                msg, col = "✓  App existente na sua conta — será reutilizado", GREEN
+                avail[idx] = True
+            else:
+                msg, col = "✓  Disponível — será criado no deploy", GREEN
+                avail[idx] = True
+            self.after(0, lambda m=msg, c=col: (
+                avail_lbl[idx].config(text=m, fg=c),
+                _refresh_nb(),
+            ))
+
+        def _schedule_check(idx, var):
+            def _on_change(*_):
+                if deb_ids[idx]:
+                    self.after_cancel(deb_ids[idx])
+                avail[idx] = None
+                avail_lbl[idx].config(text="", fg=DIM)
+                _refresh_nb()
+                name = var.get().strip()
+                ok, _ = _val_name(name)
+                if ok and fly_ok[0]:
+                    deb_ids[idx] = self.after(900, lambda: threading.Thread(
+                        target=_check_avail, args=(idx, name), daemon=True).start())
+            return _on_change
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
 
         # Zone 1 — criar conta
-        zone1 = tk.Frame(body, bg=PANEL, pady=10, padx=14)
+        zone1 = tk.Frame(body, bg=PANEL, pady=6, padx=14)
         zone1.pack(fill="x")
         row1 = tk.Frame(zone1, bg=PANEL)
         row1.pack(fill="x")
@@ -1524,7 +1560,7 @@ class Wizard(tk.Tk):
 
         # Zone 2 — login
         tk.Label(body, text="2.  Conectar o assistente à sua conta",
-                 bg=BG, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w", pady=(14, 0))
+                 bg=BG, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w", pady=(8, 0))
 
         def _login_fly():
             subprocess.Popen(["cmd.exe", "/c", "fly auth login"],
@@ -1533,6 +1569,9 @@ class Wizard(tk.Tk):
         def _after_fly_login(ok):
             fly_ok[0] = ok
             _refresh_nb()
+            if ok:
+                for i, var in enumerate([self._var("BACKEND_APP"), self._var("BOT_APP")]):
+                    threading.Thread(target=_check_avail, args=(i, var.get()), daemon=True).start()
 
         self._login_card(body, "Fly.io",
                          ["fly", "auth", "whoami"],
@@ -1540,20 +1579,33 @@ class Wizard(tk.Tk):
 
         # Zone 3 — app names
         tk.Label(body, text="3.  Escolha nomes para os servidores",
-                 bg=BG, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w", pady=(14, 0))
+                 bg=BG, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w", pady=(6, 0))
 
         suffix = secrets.token_hex(2)
         self._var("BACKEND_APP", f"finance-api-{suffix}")
         self._var("BOT_APP",     f"finance-bot-{suffix}")
 
-        v1, _, _ = self._field(body, "BACKEND_APP", "Servidor principal (backend)",
-                                hint="Endereço: https://NOME.fly.dev",
-                                validate_fn=_val_name, width=38)
-        v2, _, _ = self._field(body, "BOT_APP", "Servidor do bot Telegram",
-                                hint="Endereço: https://NOME.fly.dev",
-                                validate_fn=_val_name, width=38)
-        v1.trace_add("write", _refresh_nb)
-        v2.trace_add("write", _refresh_nb)
+        fields_row = tk.Frame(body, bg=BG)
+        fields_row.pack(fill="x")
+
+        col_left = tk.Frame(fields_row, bg=BG)
+        col_left.pack(side="left", fill="x", expand=True, padx=(0, 12))
+        v1, _, _ = self._field(col_left, "BACKEND_APP", "Servidor principal (backend)",
+                                hint="https://NOME.fly.dev",
+                                validate_fn=_val_name, width=26)
+        avail_lbl[0] = tk.Label(col_left, text="", bg=BG, fg=DIM, font=(FONT, 8))
+        avail_lbl[0].pack(anchor="w")
+
+        col_right = tk.Frame(fields_row, bg=BG)
+        col_right.pack(side="left", fill="x", expand=True)
+        v2, _, _ = self._field(col_right, "BOT_APP", "Servidor do bot Telegram",
+                                hint="https://NOME.fly.dev",
+                                validate_fn=_val_name, width=26)
+        avail_lbl[1] = tk.Label(col_right, text="", bg=BG, fg=DIM, font=(FONT, 8))
+        avail_lbl[1].pack(anchor="w")
+
+        v1.trace_add("write", _schedule_check(0, v1))
+        v2.trace_add("write", _schedule_check(1, v2))
         _refresh_nb()
 
         return p
