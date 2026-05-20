@@ -12,7 +12,7 @@ import re
 import time
 import json
 import urllib.request
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 
 DEMO = "--demo" in sys.argv
 _DEMO_PAGE = next((sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--demo" and i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-")), None)
@@ -319,9 +319,25 @@ class Wizard(tk.Tk):
 
         def _draw(event=None):
             c.delete("all")
+            c._imgs = []
             w   = c.winfo_width() or (self.W - 64)
             n   = len(self.PHASES)
             seg = w / n
+
+            def _h(hex_color):
+                return tuple(int(hex_color[j:j+2], 16) for j in (1, 3, 5))
+
+            def _aa_circle(radius, fill, border_color=None, border_px=0):
+                S, D = 4, radius * 2
+                img = Image.new("RGB", (D*S, D*S), _h(BG))
+                draw = ImageDraw.Draw(img)
+                if border_color and border_px:
+                    draw.ellipse([0, 0, D*S-1, D*S-1], fill=_h(border_color))
+                    bw = border_px * S
+                    draw.ellipse([bw, bw, D*S-1-bw, D*S-1-bw], fill=_h(fill))
+                else:
+                    draw.ellipse([0, 0, D*S-1, D*S-1], fill=_h(fill))
+                return ImageTk.PhotoImage(img.resize((D, D), Image.LANCZOS))
 
             for i, label in enumerate(self.PHASES):
                 cx = int(seg * i + seg / 2)
@@ -333,13 +349,19 @@ class Wizard(tk.Tk):
                     c.create_line(cx + 13, cy, nx - 13, cy, fill=col, width=2)
 
                 if i < phase:
-                    c.create_oval(cx-12, cy-12, cx+12, cy+12, fill=GREEN, outline="")
+                    img = _aa_circle(12, GREEN)
+                    c._imgs.append(img)
+                    c.create_image(cx, cy, image=img, anchor="center")
                     c.create_text(cx, cy, text="✓", font=(FONT, 10, "bold"), fill=BG)
                 elif i == phase:
-                    c.create_oval(cx-13, cy-13, cx+13, cy+13, fill=BLUE, outline="")
+                    img = _aa_circle(13, BLUE)
+                    c._imgs.append(img)
+                    c.create_image(cx, cy, image=img, anchor="center")
                     c.create_text(cx, cy, text=str(i+1), font=(FONT, 10, "bold"), fill="white")
                 else:
-                    c.create_oval(cx-11, cy-11, cx+11, cy+11, fill=BG, outline=DIM, width=2)
+                    img = _aa_circle(11, BG, border_color=DIM, border_px=2)
+                    c._imgs.append(img)
+                    c.create_image(cx, cy, image=img, anchor="center")
                     c.create_text(cx, cy, text=str(i+1), font=(FONT, 9), fill=DIM)
 
                 lc = TEXT if i == phase else (MUTED if i < phase else DIM)
