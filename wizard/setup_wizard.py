@@ -1391,7 +1391,7 @@ class Wizard(tk.Tk):
                  font=(FONT, 8), justify="center").pack(pady=(4, 0))
 
         v, _, _ = self._field(body, "TELEGRAM_USER_IDS", "IDs de usuário (todos que vão usar o bot)",
-                               hint="Apenas números, ex: 123456789",
+                               hint="Um ou mais IDs separados por vírgula, ex: 123456789,987654321",
                                validate_fn=_val_uid)
         v.trace_add("write", _refresh_nb)
         _refresh_nb()
@@ -1794,6 +1794,12 @@ class Wizard(tk.Tk):
         step_notes  = ["Configurando o servidor…", "Iniciando o bot…", "Publicando o painel…"]
         card_icon, card_note = [], []
 
+        # Banner de sucesso (escondido até deploy terminar)
+        deploy_banner = tk.Frame(body, bg="#14532d", pady=8, padx=16)
+        tk.Label(deploy_banner,
+                 text="✅  Publicação concluída! Clique em 'Ver resultado →' para continuar.",
+                 bg="#14532d", fg="#86efac", font=(FONT, 10, "bold")).pack(anchor="w")
+
         cards_frame = tk.Frame(body, bg=BG)
         cards_frame.pack(fill="x")
 
@@ -1828,6 +1834,8 @@ class Wizard(tk.Tk):
                                font=(FONT, 9), cursor="hand2", anchor="w")
         toggle_btn.pack(anchor="w", pady=(8, 0))
 
+        retry_btn_ref = [None]
+
         def _toggle_log():
             log_visible[0] = not log_visible[0]
             if log_visible[0]:
@@ -1836,6 +1844,27 @@ class Wizard(tk.Tk):
             else:
                 log_wrap.pack_forget()
                 toggle_btn.config(text="▸  Ver detalhes técnicos")
+
+        def _do_retry():
+            retry_btn_ref[0].pack_forget()
+            deploy_banner.pack_forget()
+            log.config(state="normal")
+            log.delete("1.0", "end")
+            log.config(state="disabled")
+            if log_visible[0]:
+                _toggle_log()
+            for i in range(len(step_labels)):
+                card_icon[i].config(text="⏳")
+                card_note[i].config(text="Aguardando…", fg=DIM)
+            done_btn.config(state="disabled", bg=PANEL2)
+            threading.Thread(target=deploy, daemon=True).start()
+
+        retry_btn = tk.Button(body, text="↺  Tentar novamente",
+                              command=_do_retry,
+                              bg=YELLOW, fg="#1c1917", activebackground="#d97706",
+                              relief="flat", font=(FONT, 10, "bold"),
+                              padx=18, pady=9, cursor="hand2")
+        retry_btn_ref[0] = retry_btn
 
         def _log(text, tag=None):
             log.config(state="normal")
@@ -1850,10 +1879,14 @@ class Wizard(tk.Tk):
                 ic, fg, note = "✅", GREEN, "Concluído!"
             else:
                 ic, fg, note = "❌", RED, "Erro — veja os detalhes técnicos"
-            self.after(0, lambda: (
-                card_icon[i].config(text=ic),
-                card_note[i].config(text=note, fg=fg),
-            ))
+            def _update():
+                card_icon[i].config(text=ic)
+                card_note[i].config(text=note, fg=fg)
+                if state == "error":
+                    if not log_visible[0]:
+                        _toggle_log()
+                    retry_btn_ref[0].pack(anchor="w", pady=(10, 0))
+            self.after(0, _update)
 
         def _dlog(msg, tag=None, _ui=True):
             self._wlog(msg)
@@ -1891,28 +1924,6 @@ class Wizard(tk.Tk):
             _dlog(f"  [DBG] fly apps list rc={r.returncode}, found={name in r.stdout}")
             return name in r.stdout
 
-        def _vercel_env(name, value):
-            _dlog(f"  [CMD] npx --yes vercel env add {name} production --force")
-            proc = _popen(["npx", "--yes", "vercel", "env", "add", name, "production", "--force"],
-                          cwd=DASHBOARD_DIR)
-            try:
-                out, _ = proc.communicate(input=value + "\n", timeout=60)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                try:
-                    out, _ = proc.communicate()
-                except Exception:
-                    out = ""
-                _dlog(f"  {name}: TIMEOUT — processo encerrado (vercel env add travou)")
-                return
-            except Exception as exc:
-                _dlog(f"  {name}: EXCEÇÃO — {exc}")
-                return
-            status = 'OK' if proc.returncode == 0 else 'ERRO'
-            _dlog(f"  {name}: {status} (rc={proc.returncode})")
-            if out.strip():
-                _dlog(f"    {out.strip()}")
-
         def deploy():
             if DEMO:
                 for i in range(3):
@@ -1930,6 +1941,7 @@ class Wizard(tk.Tk):
                 self.after(0, lambda: (
                     _log("\n✅  [DEMO] Publicação simulada concluída!", "ok"),
                     done_btn.config(state="normal", bg=BLUE),
+                    deploy_banner.pack(fill="x", pady=(0, 8), before=cards_frame),
                 ))
                 return
             v        = {k: var.get().strip() for k, var in self._vars.items()}
@@ -1963,7 +1975,7 @@ class Wizard(tk.Tk):
             db_url = f"postgresql://postgres:{db_password}@db.{proj_ref}.supabase.co:5432/postgres"
             _dlog(f"  [DBG] proj_ref={proj_ref!r}  db_url_prefix=postgresql://postgres:***@db.{proj_ref}…")
             _dlog("  [DBG] rodando fly secrets set (backend)…")
-            ok, _ = _run([
+            ok, out = _run([
                 "fly", "secrets", "set",
                 f"SUPABASE_URL={v['SUPABASE_URL']}",
                 f"SUPABASE_SERVICE_ROLE_KEY={v['SUPABASE_SERVICE_ROLE_KEY']}",
@@ -1973,14 +1985,18 @@ class Wizard(tk.Tk):
             ], cwd=BACKEND_DIR)
             _dlog(f"  [DBG] secrets set backend ok={ok}")
             if not ok:
+                if "503" in out:
+                    _dlog("  ⚠️  Fly.io retornou 503 (instabilidade temporária). Aguarde ~1 min e use 'Tentar novamente'.", "err")
                 _set_step(0, "error")
                 return
             _dlog("  [DBG] rodando fly deploy (backend)…")
-            ok, _ = _run(["fly", "deploy", "--app", bapp, "--wait-timeout", "180"],
+            ok, out = _run(["fly", "deploy", "--app", bapp, "--wait-timeout", "180"],
                          cwd=BACKEND_DIR)
             _dlog(f"  [DBG] fly deploy backend ok={ok}")
             _set_step(0, "done" if ok else "error")
             if not ok:
+                if "503" in out:
+                    _dlog("  ⚠️  Fly.io retornou 503. Aguarde ~1 min e use 'Tentar novamente'.", "err")
                 return
 
             _set_step(1, "running")
@@ -1993,7 +2009,7 @@ class Wizard(tk.Tk):
             if not _fly_exists(botapp):
                 _run(["fly", "apps", "create", botapp])
             _dlog("  [DBG] rodando fly secrets set (bot)…")
-            ok, _ = _run([
+            ok, out = _run([
                 "fly", "secrets", "set",
                 f"TELEGRAM_BOT_TOKEN={v['TELEGRAM_BOT_TOKEN']}",
                 f"TELEGRAM_USER_IDS={v['TELEGRAM_USER_IDS']}",
@@ -2004,14 +2020,18 @@ class Wizard(tk.Tk):
             ], cwd=ROOT)
             _dlog(f"  [DBG] secrets set bot ok={ok}")
             if not ok:
+                if "503" in out:
+                    _dlog("  ⚠️  Fly.io retornou 503. Aguarde ~1 min e use 'Tentar novamente'.", "err")
                 _set_step(1, "error")
                 return
             _dlog("  [DBG] rodando fly deploy (bot)…")
-            ok, _ = _run(["fly", "deploy", "--app", botapp, "--wait-timeout", "180"],
+            ok, out = _run(["fly", "deploy", "--app", botapp, "--wait-timeout", "180"],
                          cwd=ROOT)
             _dlog(f"  [DBG] fly deploy bot ok={ok}")
             _set_step(1, "done" if ok else "error")
             if not ok:
+                if "503" in out:
+                    _dlog("  ⚠️  Fly.io retornou 503. Aguarde ~1 min e use 'Tentar novamente'.", "err")
                 return
 
             _set_step(2, "running")
@@ -2133,6 +2153,7 @@ class Wizard(tk.Tk):
             self.after(0, lambda: (
                 _log("\n✅  Publicação concluída!", "ok"),
                 done_btn.config(state="normal", bg=BLUE),
+                deploy_banner.pack(fill="x", pady=(0, 8), before=cards_frame),
             ))
 
         threading.Thread(target=deploy, daemon=True).start()
@@ -2217,5 +2238,13 @@ class Wizard(tk.Tk):
 
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Per-monitor DPI
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
     app = Wizard()
     app.mainloop()
