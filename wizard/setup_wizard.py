@@ -2260,22 +2260,15 @@ class Wizard(tk.Tk):
                      next_label="Abrir painel web  →",
                      extra_btns=[
                          ("Fechar", self.destroy, PANEL),
-                         ("Copiar senha do painel", _copy_pw, PANEL2),
                      ])
 
-        warn = tk.Frame(p, bg="#7c2d12", pady=6)
-        warn.pack(side="bottom", fill="x")
-        tk.Label(warn,
-                 text="Senha que você definiu para o painel. Armazene em local seguro. O painel pode requisitar essa senha para ser acessado de forma esporádica.",
-                 bg="#7c2d12", fg="#fed7aa", font=(FONT, 8)).pack()
-
         body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(16, 0))
+        body.pack(fill="both", expand=True, padx=32, pady=(10, 0))
 
         # ── Health check card ─────────────────────────────────────────────────
         if _backend_url:
-            hcard = tk.Frame(body, bg=PANEL, pady=10, padx=16)
-            hcard.pack(fill="x", pady=(0, 8))
+            hcard = tk.Frame(body, bg=PANEL, pady=6, padx=16)
+            hcard.pack(fill="x", pady=(0, 6))
             hrow = tk.Frame(hcard, bg=PANEL)
             hrow.pack(fill="x")
             h_icon = tk.Label(hrow, text="⏳", bg=PANEL, font=(FONT, 13), width=3)
@@ -2356,6 +2349,23 @@ class Wizard(tk.Tk):
                       bg=PANEL2, fg=MUTED, relief="flat",
                       font=(FONT, 8), padx=8, pady=4, cursor="hand2").pack(side="left")
 
+        # ── Senha do painel ───────────────────────────────────────────────────
+        pw_bar = tk.Frame(body, bg="#7c2d12", pady=8, padx=14)
+        pw_bar.pack(fill="x", pady=(8, 0))
+        pw_left = tk.Frame(pw_bar, bg="#7c2d12")
+        pw_left.pack(side="left", fill="x", expand=True)
+        tk.Label(pw_left,
+                 text="🔑  Senha do painel:",
+                 bg="#7c2d12", fg="#fed7aa", font=(FONT, 9, "bold")).pack(anchor="w")
+        tk.Label(pw_left,
+                 text="Armazene em local seguro — o painel pode requisitá-la de forma esporádica.",
+                 bg="#7c2d12", fg="#fed7aa", font=(FONT, 8)).pack(anchor="w")
+        tk.Button(pw_bar, text="Copiar senha", command=_copy_pw,
+                  bg="#9a3412", fg="#fed7aa", activebackground="#7c2d12",
+                  activeforeground="white", relief="flat",
+                  font=(FONT, 9, "bold"), padx=12, pady=6,
+                  cursor="hand2").pack(side="right", padx=(8, 0))
+
         tk.Label(body, text="Próximos passos:", bg=BG, fg=TEXT,
                  font=(FONT, 11, "bold")).pack(anchor="w", pady=(10, 4))
         for num, step in [
@@ -2366,10 +2376,10 @@ class Wizard(tk.Tk):
             ("5", "Para atualizar no futuro, execute o  FinanceBotUpdate.exe."),
         ]:
             row = tk.Frame(body, bg=BG)
-            row.pack(anchor="w", pady=2)
+            row.pack(anchor="w", pady=1)
             tk.Label(row, text=f"  {num}.", bg=BG, fg=BLUE,
-                     font=(FONT, 10, "bold"), width=4).pack(side="left")
-            tk.Label(row, text=step, bg=BG, fg=MUTED, font=(FONT, 10)).pack(side="left")
+                     font=(FONT, 9, "bold"), width=4).pack(side="left")
+            tk.Label(row, text=step, bg=BG, fg=MUTED, font=(FONT, 9)).pack(side="left")
 
         return p
 
