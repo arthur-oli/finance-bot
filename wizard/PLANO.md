@@ -5,42 +5,6 @@
 
 ---
 
-## Group 5 — Mensagem de teste pelo Telegram  *(próximo)*
-
-**Tela:** `_page_done`  
-**Posição:** card após health check, antes da faixa laranja de senha  
-**Objetivo:** confirmar ao usuário que o bot está recebendo mensagens
-
-### O que fazer
-1. Ao abrir `_page_done`, enviar automaticamente uma mensagem de teste via Telegram Bot API:
-   - `GET https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage`
-   - `chat_id` = primeiro ID em `TELEGRAM_USER_IDS` (split por vírgula, strip)
-   - `text` = `"✅ Finance Bot configurado com sucesso! Esta mensagem confirma que o bot está funcionando."`
-2. Card visual (igual ao health check):
-   - `⏳ Enviando mensagem de teste…` → `✅ Mensagem enviada! Verifique o Telegram.` / `⚠️ Não foi possível enviar`
-   - Botão "↺ Reenviar" para tentar novamente
-3. Em modo DEMO: simular delay 1.2s + sucesso
-
-### Implementação técnica
-```python
-import urllib.request, urllib.parse, json as _json
-
-token   = self._var("TELEGRAM_BOT_TOKEN").get().strip()
-chat_id = self._var("TELEGRAM_USER_IDS").get().strip().split(",")[0].strip()
-url     = f"https://api.telegram.org/bot{token}/sendMessage"
-data    = urllib.parse.urlencode({"chat_id": chat_id, "text": "..."}).encode()
-req     = urllib.request.urlopen(url, data=data, timeout=10)
-ok      = req.status == 200
-```
-
-### Casos de erro tratados
-- Token inválido → `401 Unauthorized`
-- User ID inválido → `400 Bad Request` (mensagem específica)
-- Timeout → `⚠️ Bot demorou a responder`
-- Em todos os casos: mostrar `⚠️` com `detail` da exceção e botão "Reenviar"
-
----
-
 ## Group 6 — Exportar backup de credenciais
 
 **Tela:** `_page_done`  

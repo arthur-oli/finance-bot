@@ -2265,26 +2265,38 @@ class Wizard(tk.Tk):
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(10, 0))
 
-        # ── Health check card ─────────────────────────────────────────────────
+        # ── Status cards (backend + telegram) — lado a lado ──────────────────
+        _tg_token   = self._var("TELEGRAM_BOT_TOKEN").get().strip()
+        _tg_user_id = self._var("TELEGRAM_USER_IDS").get().strip().split(",")[0].strip()
+
+        status_row = tk.Frame(body, bg=BG)
+        status_row.pack(fill="x", pady=(0, 6))
+
+        def _make_status_card(parent, init_text, retry_label, side_pad):
+            col = tk.Frame(parent, bg=BG)
+            col.pack(side="left", fill="x", expand=True, padx=side_pad)
+            card = tk.Frame(col, bg=PANEL, pady=6, padx=12)
+            card.pack(fill="x")
+            row = tk.Frame(card, bg=PANEL)
+            row.pack(fill="x")
+            icon  = tk.Label(row, text="⏳", bg=PANEL, font=(FONT, 12), width=3)
+            icon.pack(side="left")
+            info  = tk.Frame(row, bg=PANEL)
+            info.pack(side="left", fill="x", expand=True)
+            title = tk.Label(info, text=init_text, bg=PANEL, fg=MUTED,
+                             font=(FONT, 9, "bold"), wraplength=240, justify="left")
+            title.pack(anchor="w")
+            sub   = tk.Label(info, text="", bg=PANEL, fg=DIM, font=(FONT, 8))
+            sub.pack(anchor="w")
+            btn   = tk.Button(row, text=retry_label, bg=PANEL2, fg=MUTED,
+                              relief="flat", font=(FONT, 8), padx=6, pady=3,
+                              cursor="hand2")
+            btn.pack(side="right")
+            return icon, title, sub, btn
+
         if _backend_url:
-            hcard = tk.Frame(body, bg=PANEL, pady=6, padx=16)
-            hcard.pack(fill="x", pady=(0, 6))
-            hrow = tk.Frame(hcard, bg=PANEL)
-            hrow.pack(fill="x")
-            h_icon = tk.Label(hrow, text="⏳", bg=PANEL, font=(FONT, 13), width=3)
-            h_icon.pack(side="left")
-            h_info = tk.Frame(hrow, bg=PANEL)
-            h_info.pack(side="left", fill="x", expand=True)
-            h_title = tk.Label(h_info, text="Verificando backend…", bg=PANEL,
-                               fg=MUTED, font=(FONT, 10, "bold"))
-            h_title.pack(anchor="w")
-            h_sub = tk.Label(h_info, text=_backend_url, bg=PANEL,
-                             fg=DIM, font=(FONT, 8))
-            h_sub.pack(anchor="w")
-            h_retry = tk.Button(hrow, text="↺ Testar", bg=PANEL2, fg=MUTED,
-                                relief="flat", font=(FONT, 9), padx=8, pady=4,
-                                cursor="hand2")
-            h_retry.pack(side="right")
+            h_icon, h_title, h_sub, h_retry = _make_status_card(
+                status_row, "Verificando backend…", "↺ Testar", (0, 6))
 
             def _do_health():
                 h_icon.config(text="⏳"); h_title.config(text="Verificando backend…", fg=MUTED)
@@ -2300,22 +2312,64 @@ class Wizard(tk.Tk):
                             req = urllib.request.urlopen(url, timeout=12)
                             ok, detail = req.status == 200, f"{req.status} OK"
                     except Exception as e:
-                        ok, detail = False, str(e)[:60]
+                        ok, detail = False, str(e)[:50]
                     def _upd():
                         if ok:
                             h_icon.config(text="✅", fg=GREEN)
-                            h_title.config(text="Backend online — tudo funcionando", fg=GREEN)
+                            h_title.config(text="Backend online", fg=GREEN)
                             h_sub.config(text=detail, fg=DIM)
                         else:
                             h_icon.config(text="⚠️", fg=YELLOW)
-                            h_title.config(text="Backend demorou a responder", fg=YELLOW)
-                            h_sub.config(text=detail or "Pode levar até 1 min para iniciar após o deploy", fg=DIM)
+                            h_title.config(text="Backend não respondeu", fg=YELLOW)
+                            h_sub.config(text=detail or "Pode levar ~1 min após o deploy", fg=DIM)
                         h_retry.config(state="normal")
                     self.after(0, _upd)
                 threading.Thread(target=_check, daemon=True).start()
 
             h_retry.config(command=_do_health)
             self.after(800, _do_health)
+
+        if _tg_token and _tg_user_id:
+            t_icon, t_title, t_sub, t_retry = _make_status_card(
+                status_row, "Enviando teste…", "↺ Reenviar", (6, 0))
+
+            def _do_tg_test():
+                t_icon.config(text="⏳")
+                t_title.config(text="Enviando teste…", fg=MUTED)
+                t_retry.config(state="disabled")
+                def _send():
+                    try:
+                        if DEMO:
+                            import time; time.sleep(1.0)
+                            ok, detail = True, f"Chat ID {_tg_user_id}"
+                        else:
+                            import urllib.request, urllib.parse
+                            msg = "✅ Finance Bot configurado com sucesso! Esta mensagem confirma que o bot está funcionando."
+                            data = urllib.parse.urlencode({
+                                "chat_id": _tg_user_id, "text": msg
+                            }).encode()
+                            req = urllib.request.urlopen(
+                                f"https://api.telegram.org/bot{_tg_token}/sendMessage",
+                                data=data, timeout=10)
+                            ok = req.status == 200
+                            detail = f"Chat ID {_tg_user_id}"
+                    except Exception as e:
+                        ok, detail = False, str(e)[:50]
+                    def _upd():
+                        if ok:
+                            t_icon.config(text="✅", fg=GREEN)
+                            t_title.config(text="Telegram funcionando!", fg=GREEN)
+                            t_sub.config(text=detail, fg=DIM)
+                        else:
+                            t_icon.config(text="⚠️", fg=YELLOW)
+                            t_title.config(text="Falha no envio", fg=YELLOW)
+                            t_sub.config(text=detail or "Verifique token e ID", fg=DIM)
+                        t_retry.config(state="normal")
+                    self.after(0, _upd)
+                threading.Thread(target=_send, daemon=True).start()
+
+            t_retry.config(command=_do_tg_test)
+            self.after(1600, _do_tg_test)
 
         url_row = tk.Frame(body, bg=BG)
         url_row.pack(fill="x", pady=(0, 4))
