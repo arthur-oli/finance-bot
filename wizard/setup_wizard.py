@@ -2220,6 +2220,29 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     def _page_done(self, urls):
         self._clear_progress()
+
+        def _create_shortcut():
+            try:
+                update_exe = os.path.join(ROOT, "FinanceBotUpdate.exe")
+                if not os.path.exists(update_exe) or DEMO:
+                    return
+                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+                lnk = os.path.join(desktop, "Atualizar Finance Bot.lnk")
+                ps = (
+                    f'$ws = New-Object -ComObject WScript.Shell; '
+                    f'$s = $ws.CreateShortcut("{lnk}"); '
+                    f'$s.TargetPath = "{update_exe}"; '
+                    f'$s.WorkingDirectory = "{ROOT}"; '
+                    f'$s.Description = "Atualizar Finance Bot"; '
+                    f'$s.Save()'
+                )
+                subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                               capture_output=True, creationflags=NO_WIN, timeout=10)
+            except Exception:
+                pass
+
+        threading.Thread(target=_create_shortcut, daemon=True).start()
+
         p = tk.Frame(self, bg=BG)
         self._header(p, "Tudo pronto! 🎉",
                      "Seu Finance Bot está no ar.", phase=4)
@@ -2336,11 +2359,11 @@ class Wizard(tk.Tk):
         tk.Label(body, text="Próximos passos:", bg=BG, fg=TEXT,
                  font=(FONT, 11, "bold")).pack(anchor="w", pady=(10, 4))
         for num, step in [
-            ("1", "Abra o Telegram, encontre seu bot pelo nome e clique em START"),
-            ("2", "Mande uma mensagem como:  gastei 50 reais no mercado"),
-            ("3", "Acesse o painel web e entre com a senha que você definiu"),
-            ("4", "Cadastre seus cartões no painel antes de usar"),
-            ("5", "Para atualizar no futuro, execute o  FinanceBotUpdate.exe"),
+            ("1", "Abra o Telegram, encontre seu bot pelo nome e clique em START."),
+            ("2", "Mande uma mensagem como:  gastei 50 reais no mercado."),
+            ("3", "Acesse o painel web e entre com a senha que você definiu."),
+            ("4", "Cadastre seus cartões no painel antes de usar."),
+            ("5", "Para atualizar no futuro, execute o  FinanceBotUpdate.exe."),
         ]:
             row = tk.Frame(body, bg=BG)
             row.pack(anchor="w", pady=2)
