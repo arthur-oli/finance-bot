@@ -69,6 +69,52 @@ FONT   = "Calibri"
 NO_WIN = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
 
+def _parse_cred_file(path):
+    """Parse a Finance Bot credentials .txt file and return wizard var dict."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except Exception:
+        return None
+    if "Finance Bot — Credenciais" not in text:
+        return None
+
+    def _get(label):
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(label):
+                return stripped[len(label):].strip()
+        return ""
+
+    result = {}
+    for label, key in [
+        ("Senha do painel:",    "DASHBOARD_PASSWORD"),
+        ("Supabase URL:",       "SUPABASE_URL"),
+        ("Supabase Project:",   "SUPABASE_PROJECT_ID"),
+        ("Telegram Bot Token:", "TELEGRAM_BOT_TOKEN"),
+        ("Telegram User IDs:",  "TELEGRAM_USER_IDS"),
+        ("Groq API Key:",       "GROQ_API_KEY"),
+    ]:
+        v = _get(label)
+        if v:
+            result[key] = v
+
+    if "DASHBOARD_PASSWORD" in result:
+        result["DASHBOARD_PASSWORD2"] = result["DASHBOARD_PASSWORD"]
+
+    for label, key, pattern in [
+        ("Backend:",       "BACKEND_APP", r"https?://([^.]+)\.fly\.dev"),
+        ("Bot Telegram:",  "BOT_APP",     r"https?://([^.]+)\.fly\.dev"),
+        ("Painel web:",    "VERCEL_APP",  r"https?://([^.]+)\.vercel\.app"),
+    ]:
+        url = _get(label)
+        m = re.match(pattern, url)
+        if m:
+            result[key] = m.group(1)
+
+    return result if result else None
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _refresh_path():
     if sys.platform != "win32":
@@ -231,7 +277,7 @@ class Wizard(tk.Tk):
             "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo",
             "TELEGRAM_BOT_TOKEN":        "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ123456",
             "TELEGRAM_USER_IDS":         "987654321",
-            "GROQ_API_KEY":              "gsk_demoKeyForTestingPurposesOnly123456",
+            "GROQ_API_KEY":              "gsk_demoKeyForTestingPurposesOnly1234567890",
             "BACKEND_APP":               "finance-api-demo",
             "BOT_APP":                   "finance-bot-demo",
             "DASHBOARD_PASSWORD":        "demo1234",
@@ -242,7 +288,7 @@ class Wizard(tk.Tk):
 
     # ── Progress persistence ───────────────────────────────────────────────────
     def _save_progress(self, page_key):
-        if DEMO:
+        if DEMO or page_key == "<lambda>":
             return
         try:
             os.makedirs(_APPDATA, exist_ok=True)
@@ -602,6 +648,41 @@ class Wizard(tk.Tk):
                       relief="flat", font=(FONT, 10, "bold"),
                       padx=16, pady=7, cursor="hand2").pack(anchor="w", pady=(8, 0))
 
+        # ── Importar credenciais exportadas ───────────────────────────────────
+        def _do_import():
+            path = filedialog.askopenfilename(
+                title="Selecione o arquivo de credenciais do Finance Bot",
+                filetypes=[("Arquivo de texto", "*.txt"), ("Todos os arquivos", "*.*")],
+                initialdir=os.path.join(os.path.expanduser("~"), "Desktop"),
+                parent=self,
+            )
+            if not path:
+                return
+            parsed = _parse_cred_file(path)
+            if not parsed:
+                from tkinter import messagebox
+                messagebox.showerror(
+                    "Arquivo inválido",
+                    "Não foi possível ler as credenciais do arquivo.\n"
+                    "Verifique se é um arquivo exportado pelo Finance Bot.",
+                    parent=self,
+                )
+                return
+            for k, v in parsed.items():
+                self._var(k).set(v)
+            self._show(self._page_prereqs)
+
+        import_row = tk.Frame(body, bg=BG)
+        import_row.pack(padx=60, fill="x", pady=(12, 0))
+        tk.Button(import_row, text="📂  Importar credenciais existentes",
+                  command=_do_import,
+                  bg=PANEL, fg=MUTED, activebackground=PANEL2, activeforeground=TEXT,
+                  relief="flat", font=(FONT, 9), padx=14, pady=7,
+                  cursor="hand2").pack(side="left")
+        tk.Label(import_row,
+                 text="  Reinstalando em outro computador?",
+                 bg=BG, fg=DIM, font=(FONT, 8)).pack(side="left")
+
         self._footer(p, next_fn=lambda: self._show(self._page_prereqs),
                      next_label="Começar do zero  →" if _saved else "Começar  →")
         return p
@@ -778,9 +859,9 @@ class Wizard(tk.Tk):
                 threading.Thread(target=_run, daemon=True).start()
 
             btn = tk.Button(top, text=act_label, command=_do,
-                            bg=BLUE, fg="white", relief="flat",
+                            bg=DIM, fg="white", relief="flat",
                             font=(FONT, 9, "bold"), padx=12, pady=6, cursor="hand2",
-                            disabledforeground="white")
+                            state="disabled", disabledforeground="white")
             btn.pack(side="right")
             btn_ref[0] = btn
             items.append((icon, st, btn, chk_fn))
@@ -979,6 +1060,20 @@ class Wizard(tk.Tk):
                                bg=PANEL, fg=DIM, font=(FONT, 8))
         status_lbl.pack(anchor="w", pady=(4, 0))
 
+        # Info card: what gets downloaded
+        info_dl = tk.Frame(body, bg=PANEL, pady=12, padx=16)
+        info_dl.pack(fill="x", pady=(10, 0))
+        tk.Label(info_dl, text="📦  O que será baixado", bg=PANEL, fg=TEXT,
+                 font=(FONT, 10, "bold")).pack(anchor="w")
+        for _item in [
+            "Código-fonte do Finance Bot (backend + bot + painel web)",
+            f"Origem: github.com/{GITHUB_REPO}",
+            "Tamanho estimado: ~30 MB",
+            "Tempo estimado: ~1 minuto (depende da conexão)",
+        ]:
+            tk.Label(info_dl, text=f"  • {_item}", bg=PANEL, fg=MUTED,
+                     font=(FONT, 9), anchor="w").pack(anchor="w", pady=1)
+
         # Progress log (hidden until download starts)
         log_wrap = tk.Frame(body, bg=BG)
         log_box = scrolledtext.ScrolledText(log_wrap, bg=PANEL, fg=MUTED,
@@ -1085,7 +1180,7 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 2a — Supabase: Project URL
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_supabase(self):
+    def _page_supabase(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Supabase — banco de dados",
                      "Siga o passo a passo abaixo para criar o projeto.",
@@ -1103,9 +1198,11 @@ class Wizard(tk.Tk):
                 return True, "✓  Senha registrada"
             return False, "✗  Cole a senha gerada no passo 4"
 
+        _next = self._page_review if return_to_review else self._page_supabase_keys
+        _back = self._page_review if return_to_review else self._page_clone
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_clone),
-                          next_fn=lambda: self._show(self._page_supabase_keys),
+                          back_fn=lambda: self._show(_back),
+                          next_fn=lambda: self._show(_next),
                           next_enabled=False)
 
         def _refresh_nb(*_):
@@ -1164,7 +1261,7 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 2b — Supabase: API Key
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_supabase_keys(self):
+    def _page_supabase_keys(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Supabase — chave secreta",
                      "Copie a chave service_role para o assistente acessar o banco.",
@@ -1176,9 +1273,11 @@ class Wizard(tk.Tk):
                 return True, "✓  Formato correto"
             return False, "✗  Começa com  eyJ  e é bem longa — use a  service_role,  não a  anon"
 
+        _next = self._page_review if return_to_review else self._page_telegram_bot
+        _back = self._page_review if return_to_review else self._page_supabase
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_supabase),
-                          next_fn=lambda: self._show(self._page_telegram_bot),
+                          back_fn=lambda: self._show(_back),
+                          next_fn=lambda: self._show(_next),
                           next_enabled=False)
 
         def _refresh_nb(*_):
@@ -1228,7 +1327,7 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 3a — Telegram: criar bot
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_telegram_bot(self):
+    def _page_telegram_bot(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Telegram — criar o bot",
                      "Vamos criar seu bot via @BotFather e salvar o token.",
@@ -1240,9 +1339,11 @@ class Wizard(tk.Tk):
                 return True, "✓  Formato correto"
             return False, "✗  Formato: 123456789:ABCdefGHIjkl..."
 
+        _next = self._page_review if return_to_review else self._page_telegram_id
+        _back = self._page_review if return_to_review else self._page_supabase
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_supabase),
-                          next_fn=lambda: self._show(self._page_telegram_id),
+                          back_fn=lambda: self._show(_back),
+                          next_fn=lambda: self._show(_next),
                           next_enabled=False)
 
         def _refresh_nb(*_):
@@ -1321,7 +1422,7 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 3b — Telegram: descobrir ID
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_telegram_id(self):
+    def _page_telegram_id(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Telegram — seu ID de usuário",
                      "Descubra o número que identifica sua conta no Telegram.",
@@ -1333,9 +1434,11 @@ class Wizard(tk.Tk):
                 return True, "✓  Formato correto"
             return False, "✗  Apenas números — vírgula para múltiplos usuários"
 
+        _next = self._page_review if return_to_review else self._page_groq
+        _back = self._page_review if return_to_review else self._page_telegram_bot
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_telegram_bot),
-                          next_fn=lambda: self._show(self._page_groq),
+                          back_fn=lambda: self._show(_back),
+                          next_fn=lambda: self._show(_next),
                           next_enabled=False)
 
         def _refresh_nb(*_):
@@ -1411,7 +1514,7 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 4 — Groq
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_groq(self):
+    def _page_groq(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Groq — inteligência artificial",
                      "A IA que lê suas mensagens e identifica gastos automaticamente.",
@@ -1423,9 +1526,11 @@ class Wizard(tk.Tk):
                 return True, "✓  Formato correto"
             return False, "✗  Deve começar com  gsk_"
 
+        _next = self._page_review if return_to_review else self._page_fly
+        _back = self._page_review if return_to_review else self._page_telegram_id
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_telegram_id),
-                          next_fn=lambda: self._show(self._page_fly),
+                          back_fn=lambda: self._show(_back),
+                          next_fn=lambda: self._show(_next),
                           next_enabled=False)
 
         def _refresh_nb(*_):
@@ -1475,7 +1580,7 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 5 — Fly.io
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_fly(self):
+    def _page_fly(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Fly.io — onde o bot vai rodar",
                      "Hospedagem 24/7 do backend e do bot Telegram. Gratuito.",
@@ -1493,9 +1598,11 @@ class Wizard(tk.Tk):
         deb_ids   = [None, None]
         avail_lbl = [None, None]
 
+        _next = self._page_review if return_to_review else self._page_vercel_login
+        _back = self._page_review if return_to_review else self._page_groq
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_groq),
-                          next_fn=lambda: self._show(self._page_vercel_login),
+                          back_fn=lambda: self._show(_back),
+                          next_fn=lambda: self._show(_next),
                           next_enabled=False)
 
         def _refresh_nb(*_):
@@ -1617,16 +1724,18 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 6a — Vercel: login
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_vercel_login(self):
+    def _page_vercel_login(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Vercel — o painel web",
                      "Onde você acompanha seus gastos pelo navegador. Gratuito.",
                      phase=1, provider_idx=4)
 
         vercel_ok = [False]
+        _next = self._page_review if return_to_review else self._page_vercel_password
+        _back = self._page_review if return_to_review else self._page_fly
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_fly),
-                          next_fn=lambda: self._show(self._page_vercel_password),
+                          back_fn=lambda: self._show(_back),
+                          next_fn=lambda: self._show(_next),
                           next_enabled=False)
 
         def _refresh_nb(ok=None):
@@ -1680,7 +1789,7 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # Tela 6b — Vercel: senha de acesso
     # ══════════════════════════════════════════════════════════════════════════
-    def _page_vercel_password(self):
+    def _page_vercel_password(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
         self._header(p, "Vercel — senha do painel",
                      "Defina a senha para acessar o painel web.",
@@ -1693,8 +1802,9 @@ class Wizard(tk.Tk):
                 return True, "✓  Tamanho OK"
             return False, "✗  Mínimo 6 caracteres"
 
+        _back = self._page_review if return_to_review else self._page_vercel_login
         nb = self._footer(p,
-                          back_fn=lambda: self._show(self._page_vercel_login),
+                          back_fn=lambda: self._show(_back),
                           next_fn=lambda: self._show(self._page_review),
                           next_enabled=False)
 
@@ -1779,54 +1889,68 @@ class Wizard(tk.Tk):
         nb.config(bg="#16a34a", activebackground="#15803d")  # green for final action
 
         body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
+        body.pack(fill="both", expand=True, padx=32, pady=(6, 0))
 
         def _mask(v, show_last=4):
             if not v:
                 return "(não preenchido)"
             if len(v) <= show_last:
                 return "•" * len(v)
-            return "•" * (len(v) - show_last) + v[-show_last:]
+            dots = min(len(v) - show_last, 26)
+            return "•" * dots + v[-show_last:]
 
         sections = [
-            ("✅  Supabase", lambda: self._show(self._page_supabase), [
+            ("✅  Supabase", lambda: self._show(lambda: self._page_supabase(return_to_review=True)), [
                 ("Project ID", lambda: self._var("SUPABASE_PROJECT_ID").get() or "(vazio)"),
                 ("URL",        lambda: self._var("SUPABASE_URL").get() or "(vazio)"),
                 ("Chave",      lambda: _mask(self._var("SUPABASE_SERVICE_ROLE_KEY").get())),
             ]),
-            ("✅  Telegram", lambda: self._show(self._page_telegram_bot), [
+            ("✅  Telegram", lambda: self._show(lambda: self._page_telegram_bot(return_to_review=True)), [
                 ("Token",  lambda: _mask(self._var("TELEGRAM_BOT_TOKEN").get())),
                 ("Seu ID", lambda: self._var("TELEGRAM_USER_IDS").get() or "(vazio)"),
             ]),
-            ("✅  Groq", lambda: self._show(self._page_groq), [
+            ("✅  Groq", lambda: self._show(lambda: self._page_groq(return_to_review=True)), [
                 ("Chave",  lambda: _mask(self._var("GROQ_API_KEY").get())),
             ]),
-            ("✅  Fly.io", lambda: self._show(self._page_fly), [
+            ("✅  Fly.io", lambda: self._show(lambda: self._page_fly(return_to_review=True)), [
                 ("Backend", lambda: self._var("BACKEND_APP").get() or "(vazio)"),
                 ("Bot",     lambda: self._var("BOT_APP").get() or "(vazio)"),
             ]),
-            ("✅  Vercel", lambda: self._show(self._page_vercel_login), [
+            ("✅  Vercel", lambda: self._show(lambda: self._page_vercel_password(return_to_review=True)), [
                 ("Senha do painel", lambda: _mask(self._var("DASHBOARD_PASSWORD").get())),
             ]),
         ]
 
-        for title, edit_fn, fields in sections:
-            card = tk.Frame(body, bg=PANEL, pady=10, padx=16)
+        # Two-column layout: left = Supabase + Telegram, right = Groq + Fly.io + Vercel
+        cols_frame = tk.Frame(body, bg=BG)
+        cols_frame.pack(fill="both", expand=True)
+        col_left  = tk.Frame(cols_frame, bg=BG)
+        col_left.pack(side="left", fill="both", expand=True, padx=(0, 5))
+        col_right = tk.Frame(cols_frame, bg=BG)
+        col_right.pack(side="left", fill="both", expand=True, padx=(5, 0))
+
+        def _build_card(parent, title, edit_fn, fields):
+            card = tk.Frame(parent, bg=PANEL, pady=10, padx=12)
             card.pack(fill="x", pady=3)
-            top  = tk.Frame(card, bg=PANEL)
+            top = tk.Frame(card, bg=PANEL)
             top.pack(fill="x")
             tk.Label(top, text=title, bg=PANEL, fg=TEXT,
                      font=(FONT, 10, "bold")).pack(side="left")
             tk.Button(top, text="Editar", command=edit_fn,
                       bg=PANEL2, fg=MUTED, relief="flat",
-                      font=(FONT, 9), padx=10, pady=3, cursor="hand2").pack(side="right")
+                      font=(FONT, 9), padx=8, pady=3, cursor="hand2").pack(side="right")
             for label, val_fn in fields:
                 row = tk.Frame(card, bg=PANEL)
                 row.pack(anchor="w", pady=1)
                 tk.Label(row, text=f"  {label}:", bg=PANEL, fg=DIM,
-                         font=(FONT, 9), width=14, anchor="w").pack(side="left")
+                         font=(FONT, 9), anchor="w").pack(side="left")
                 tk.Label(row, text=val_fn(), bg=PANEL, fg=MUTED,
-                         font=("Consolas", 9)).pack(side="left")
+                         font=("Consolas", 9), wraplength=280, justify="left").pack(side="left", anchor="w")
+
+        for sec in sections[:2]:
+            _build_card(col_left, *sec)
+        for sec in sections[2:]:
+            _build_card(col_right, *sec)
 
         return p
 
@@ -1848,7 +1972,8 @@ class Wizard(tk.Tk):
 
         step_labels = ["Servidor principal", "Bot do Telegram", "Painel web"]
         step_notes  = ["Configurando o servidor…", "Iniciando o bot…", "Publicando o painel…"]
-        card_icon, card_note = [], []
+        step_times  = ["~3 min", "~2 min", "~1 min"]
+        card_icon, card_note, card_time = [], [], []
 
         # Banner de sucesso (escondido até deploy terminar)
         deploy_banner = tk.Frame(body, bg="#14532d", pady=8, padx=16)
@@ -1859,7 +1984,7 @@ class Wizard(tk.Tk):
         cards_frame = tk.Frame(body, bg=BG)
         cards_frame.pack(fill="x")
 
-        for i, (label, note) in enumerate(zip(step_labels, step_notes)):
+        for i, (label, note, est) in enumerate(zip(step_labels, step_notes, step_times)):
             card = tk.Frame(cards_frame, bg=PANEL, pady=12, padx=16)
             card.pack(fill="x", pady=3)
             ic = tk.Label(card, text="⏳", bg=PANEL, font=(FONT, 16), width=3)
@@ -1870,8 +1995,11 @@ class Wizard(tk.Tk):
                      font=(FONT, 11, "bold")).pack(anchor="w")
             nt = tk.Label(txt, text="Aguardando…", bg=PANEL, fg=DIM, font=(FONT, 9))
             nt.pack(anchor="w")
+            tm = tk.Label(txt, text=est, bg=PANEL, fg=DIM, font=(FONT, 8))
+            tm.pack(anchor="w")
             card_icon.append(ic)
             card_note.append(nt)
+            card_time.append(tm)
 
         # Log
         log_visible = [False]
@@ -1903,6 +2031,7 @@ class Wizard(tk.Tk):
 
         def _do_retry():
             retry_btn_ref[0].pack_forget()
+            log_link.pack_forget()
             deploy_banner.pack_forget()
             log.config(state="normal")
             log.delete("1.0", "end")
@@ -1912,6 +2041,8 @@ class Wizard(tk.Tk):
             for i in range(len(step_labels)):
                 card_icon[i].config(text="⏳")
                 card_note[i].config(text="Aguardando…", fg=DIM)
+                card_time[i].config(text=step_times[i])
+                card_time[i].pack(anchor="w")
             done_btn.config(state="disabled", bg=PANEL2)
             threading.Thread(target=deploy, daemon=True).start()
 
@@ -1922,26 +2053,42 @@ class Wizard(tk.Tk):
                               padx=18, pady=9, cursor="hand2")
         retry_btn_ref[0] = retry_btn
 
+        _log_path = self._LOG_CANDIDATES[0]
+        log_link = tk.Label(body,
+                            text=f"Arquivo completo: {_log_path}",
+                            bg=BG, fg=BLUE, font=(FONT, 8), cursor="hand2", anchor="w")
+        log_link.bind("<Button-1>",
+                      lambda e, p=_log_path: subprocess.Popen(["notepad.exe", p]))
+
         def _log(text, tag=None):
             log.config(state="normal")
             log.insert("end", text + "\n", tag or "")
             log.see("end")
             log.config(state="disabled")
 
-        def _set_step(i, state):
+        def _set_step(i, state, out=""):
             if state == "running":
                 ic, fg, note = "⏳", YELLOW, step_notes[i]
             elif state == "done":
                 ic, fg, note = "✅", GREEN, "Concluído!"
             else:
-                ic, fg, note = "❌", RED, "Erro — veja os detalhes técnicos"
+                if "You've exceeded your free machines limit" in out:
+                    note = "Limite de máquinas gratuitas atingido. Apague apps antigos em fly.io/dashboard."
+                elif "region not available" in out:
+                    note = "Região indisponível. Tente novamente em alguns minutos."
+                else:
+                    note = "Erro — veja os detalhes técnicos"
+                ic, fg = "❌", RED
             def _update():
                 card_icon[i].config(text=ic)
                 card_note[i].config(text=note, fg=fg)
+                if state in ("done", "error"):
+                    card_time[i].pack_forget()
                 if state == "error":
                     if not log_visible[0]:
                         _toggle_log()
                     retry_btn_ref[0].pack(anchor="w", pady=(10, 0))
+                    log_link.pack(anchor="w", pady=(2, 0))
             self.after(0, _update)
 
         def _dlog(msg, tag=None, _ui=True):
@@ -2043,13 +2190,13 @@ class Wizard(tk.Tk):
             if not ok:
                 if "503" in out:
                     _dlog("  ⚠️  Fly.io retornou 503 (instabilidade temporária). Aguarde ~1 min e use 'Tentar novamente'.", "err")
-                _set_step(0, "error")
+                _set_step(0, "error", out=out)
                 return
             _dlog("  [DBG] rodando fly deploy (backend)…")
             ok, out = _run(["fly", "deploy", "--app", bapp, "--wait-timeout", "180"],
                          cwd=BACKEND_DIR)
             _dlog(f"  [DBG] fly deploy backend ok={ok}")
-            _set_step(0, "done" if ok else "error")
+            _set_step(0, "done" if ok else "error", out=out)
             if not ok:
                 if "503" in out:
                     _dlog("  ⚠️  Fly.io retornou 503. Aguarde ~1 min e use 'Tentar novamente'.", "err")
@@ -2078,13 +2225,13 @@ class Wizard(tk.Tk):
             if not ok:
                 if "503" in out:
                     _dlog("  ⚠️  Fly.io retornou 503. Aguarde ~1 min e use 'Tentar novamente'.", "err")
-                _set_step(1, "error")
+                _set_step(1, "error", out=out)
                 return
             _dlog("  [DBG] rodando fly deploy (bot)…")
             ok, out = _run(["fly", "deploy", "--app", botapp, "--wait-timeout", "180"],
                          cwd=ROOT)
             _dlog(f"  [DBG] fly deploy bot ok={ok}")
-            _set_step(1, "done" if ok else "error")
+            _set_step(1, "done" if ok else "error", out=out)
             if not ok:
                 if "503" in out:
                     _dlog("  ⚠️  Fly.io retornou 503. Aguarde ~1 min e use 'Tentar novamente'.", "err")
@@ -2188,7 +2335,7 @@ class Wizard(tk.Tk):
             else:
                 ok, out = ok1, out1
 
-            _set_step(2, "done" if ok else "error")
+            _set_step(2, "done" if ok else "error", out=out)
 
             match = re.search(r"https://[^\s]+\.vercel\.app", out)
             dash_url = match.group(0) if match else "(veja vercel.com)"
@@ -2255,11 +2402,97 @@ class Wizard(tk.Tk):
             self.clipboard_clear()
             self.clipboard_append(_pw)
 
+        # Toast notification
+        toast_ref = [None]
+        def _show_toast(msg, color=GREEN):
+            if toast_ref[0] and toast_ref[0].winfo_exists():
+                toast_ref[0].place_forget()
+            t = tk.Label(p, text=msg, bg=color, fg="white",
+                         font=(FONT, 9, "bold"), pady=6, padx=14)
+            t.place(relx=0.5, y=self.H - 68, anchor="center")
+            toast_ref[0] = t
+            self.after(3000, lambda: t.place_forget() if t.winfo_exists() else None)
+
+        def _do_export():
+            from datetime import datetime as _dt
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            if DEMO:
+                _b   = "https://finance-api-demo.fly.dev"
+                _d   = "https://finance-bot-demo.vercel.app"
+                _bot = "finance-bot-demo"
+                _sub = "https://abcdefghij1234567890.supabase.co"
+                _pro = "abcdefghij1234567890"
+                _tok = "123456789:ABCdefGHIjklMNOpqrSTUvwxYZ123456"
+                _ids = "987654321"
+                _grq = "gsk_demoKeyForTestingPurposesOnly1234567890"
+                _pw2 = "demo1234"
+            else:
+                _b   = urls.get("backend", "")
+                _d   = urls.get("dashboard", "")
+                _bot = urls.get("bot", "")
+                _sub = self._var("SUPABASE_URL").get()
+                _pro = self._var("SUPABASE_PROJECT_ID").get()
+                _tok = self._var("TELEGRAM_BOT_TOKEN").get()
+                _ids = self._var("TELEGRAM_USER_IDS").get()
+                _grq = self._var("GROQ_API_KEY").get()
+                _pw2 = _pw
+            now = _dt.now()
+            content = (
+                f"Finance Bot — Credenciais (geradas em {now:%d/%m/%Y %H:%M})\n"
+                f"{'─' * 53}\n"
+                f"Painel web:         {_d}\n"
+                f"Senha do painel:    {_pw2}\n"
+                f"Backend:            {_b}\n"
+                f"Bot Telegram:       {_bot}\n"
+                f"\n"
+                f"Supabase URL:       {_sub}\n"
+                f"Supabase Project:   {_pro}\n"
+                f"Telegram Bot Token: {_tok}\n"
+                f"Telegram User IDs:  {_ids}\n"
+                f"Groq API Key:       {_grq}\n"
+            )
+            base = f"FinanceBot-credenciais-{now:%Y%m%d}"
+            path = os.path.join(desktop, base + ".txt")
+            if os.path.exists(path):
+                for n in range(2, 100):
+                    candidate = os.path.join(desktop, f"{base}-{n}.txt")
+                    if not os.path.exists(candidate):
+                        path = candidate
+                        break
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                subprocess.Popen(["notepad.exe", path])
+                self.after(0, lambda: _show_toast("✓  Arquivo salvo no Desktop"))
+            except Exception as e:
+                self.after(0, lambda err=e: _show_toast(f"Erro: {err}", RED))
+
+        _exported = [False]
+
+        def _export_credentials():
+            _exported[0] = True
+            threading.Thread(target=_do_export, daemon=True).start()
+
+        def _confirm_close():
+            if not _exported[0]:
+                from tkinter import messagebox
+                if not messagebox.askyesno(
+                    "Fechar sem exportar?",
+                    "Você ainda não exportou as credenciais.\n\n"
+                    "Sem elas, não será possível recuperar a senha do painel "
+                    "ou reconfigurar o bot no futuro.\n\n"
+                    "Fechar mesmo assim?",
+                    icon="warning",
+                ):
+                    return
+            self.destroy()
+
         self._footer(p,
                      next_fn=lambda: webbrowser.open(_dash_url) or None,
                      next_label="Abrir painel web  →",
                      extra_btns=[
-                         ("Fechar", self.destroy, PANEL),
+                         ("Exportar credenciais", _export_credentials, PANEL2),
+                         ("Fechar", _confirm_close, PANEL),
                      ])
 
         body = tk.Frame(p, bg=BG)
