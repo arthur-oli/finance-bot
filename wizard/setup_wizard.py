@@ -2245,18 +2245,22 @@ class Wizard(tk.Tk):
 
             # Ler token de auth do Vercel CLI ANTES do deploy (evita travamento por seleção de scope)
             vercel_token = None
+            _dlog(f"  [DBG] LOCALAPPDATA={os.environ.get('LOCALAPPDATA', '(nao definido)')}")
+            _dlog(f"  [DBG] APPDATA={os.environ.get('APPDATA', '(nao definido)')}")
             for _tp in [
                 os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.vercel.cli", "auth.json"),
                 os.path.join(os.environ.get("APPDATA", ""), "com.vercel.cli", "auth.json"),
+                os.path.join(os.environ.get("USERPROFILE", ""), ".vercel", "auth.json"),
             ]:
+                _dlog(f"  [DBG] testando: {_tp} — {'EXISTE' if os.path.exists(_tp) else 'nao existe'}")
                 if os.path.exists(_tp):
                     try:
                         with open(_tp) as _f:
                             vercel_token = json.load(_f).get("token")
                         _dlog(f"  [DBG] token Vercel lido de {_tp}")
                         break
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        _dlog(f"  [DBG] erro ao ler {_tp}: {_e}")
             if not vercel_token:
                 _dlog("  [DBG] token Vercel NAO encontrado — vars serao configuradas manualmente")
 
