@@ -2262,7 +2262,29 @@ class Wizard(tk.Tk):
                     except Exception as _e:
                         _dlog(f"  [DBG] erro ao ler {_tp}: {_e}")
             if not vercel_token:
-                _dlog("  [DBG] token Vercel NAO encontrado — vars serao configuradas manualmente")
+                _dlog("  [DBG] token Vercel NAO encontrado — abrindo login…")
+                _lproc = subprocess.Popen(
+                    ["cmd.exe", "/c", "npx --yes vercel login"],
+                    env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                )
+                _lproc.wait()
+                # Tentar ler token novamente após login
+                for _tp in [
+                    os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.vercel.cli", "auth.json"),
+                    os.path.join(os.environ.get("APPDATA", ""), "com.vercel.cli", "auth.json"),
+                    os.path.join(os.environ.get("USERPROFILE", ""), ".vercel", "auth.json"),
+                ]:
+                    if os.path.exists(_tp):
+                        try:
+                            with open(_tp) as _f:
+                                vercel_token = json.load(_f).get("token")
+                            _dlog(f"  [DBG] token lido após login: {_tp}")
+                            break
+                        except Exception as _e:
+                            _dlog(f"  [DBG] erro ao ler {_tp}: {_e}")
+                if not vercel_token:
+                    _dlog("  [DBG] token ainda nao encontrado após login", "err")
 
             _vcmd = ["npx", "--yes", "vercel", "--prod", "--yes"]
             if vercel_token:
