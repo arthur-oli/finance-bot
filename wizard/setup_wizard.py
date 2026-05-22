@@ -2295,23 +2295,46 @@ class Wizard(tk.Tk):
                 f.write("{}\n")
 
             # Ler token de auth do Vercel CLI ANTES do deploy (evita travamento por seleção de scope)
-            vercel_token = None
-            _dlog(f"  [DBG] LOCALAPPDATA={os.environ.get('LOCALAPPDATA', '(nao definido)')}")
-            _dlog(f"  [DBG] APPDATA={os.environ.get('APPDATA', '(nao definido)')}")
-            for _tp in [
-                os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.vercel.cli", "auth.json"),
-                os.path.join(os.environ.get("APPDATA", ""), "com.vercel.cli", "auth.json"),
-                os.path.join(os.environ.get("USERPROFILE", ""), ".vercel", "auth.json"),
-            ]:
-                _dlog(f"  [DBG] testando: {_tp} — {'EXISTE' if os.path.exists(_tp) else 'nao existe'}")
-                if os.path.exists(_tp):
-                    try:
-                        with open(_tp) as _f:
-                            vercel_token = json.load(_f).get("token")
-                        _dlog(f"  [DBG] token Vercel lido de {_tp}")
-                        break
-                    except Exception as _e:
-                        _dlog(f"  [DBG] erro ao ler {_tp}: {_e}")
+            import glob as _glob
+
+            def _find_vercel_token():
+                _sys_drive = os.environ.get("SystemDrive", "C:")
+                _candidates = []
+                # Paths conhecidos via variáveis de ambiente
+                for _env in ("LOCALAPPDATA", "APPDATA", "USERPROFILE"):
+                    _val = os.environ.get(_env, "")
+                    if _val:
+                        _candidates += [
+                            os.path.join(_val, "com.vercel.cli", "auth.json"),
+                            os.path.join(_val, "AppData", "Local", "com.vercel.cli", "auth.json"),
+                            os.path.join(_val, "AppData", "Roaming", "com.vercel.cli", "auth.json"),
+                            os.path.join(_val, ".vercel", "auth.json"),
+                        ]
+                # Busca ampla em todos os perfis de usuário do sistema
+                _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\AppData\\Local\\com.vercel.cli\\auth.json")
+                _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\AppData\\Roaming\\com.vercel.cli\\auth.json")
+                _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\.vercel\\auth.json")
+                # Deduplicar preservando ordem
+                seen = set()
+                for _tp in _candidates:
+                    _tp = os.path.normpath(_tp)
+                    if _tp in seen:
+                        continue
+                    seen.add(_tp)
+                    _exists = os.path.exists(_tp)
+                    _dlog(f"  [DBG] testando: {_tp} — {'EXISTE' if _exists else 'nao existe'}")
+                    if _exists:
+                        try:
+                            with open(_tp) as _f:
+                                _tok = json.load(_f).get("token")
+                            if _tok:
+                                _dlog(f"  [DBG] token Vercel lido de {_tp}")
+                                return _tok
+                        except Exception as _e:
+                            _dlog(f"  [DBG] erro ao ler {_tp}: {_e}")
+                return None
+
+            vercel_token = _find_vercel_token()
             if not vercel_token:
                 _dlog("  [DBG] token Vercel NAO encontrado — abrindo login…")
                 _lproc = subprocess.Popen(
@@ -2320,20 +2343,7 @@ class Wizard(tk.Tk):
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
                 _lproc.wait()
-                # Tentar ler token novamente após login
-                for _tp in [
-                    os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.vercel.cli", "auth.json"),
-                    os.path.join(os.environ.get("APPDATA", ""), "com.vercel.cli", "auth.json"),
-                    os.path.join(os.environ.get("USERPROFILE", ""), ".vercel", "auth.json"),
-                ]:
-                    if os.path.exists(_tp):
-                        try:
-                            with open(_tp) as _f:
-                                vercel_token = json.load(_f).get("token")
-                            _dlog(f"  [DBG] token lido após login: {_tp}")
-                            break
-                        except Exception as _e:
-                            _dlog(f"  [DBG] erro ao ler {_tp}: {_e}")
+                vercel_token = _find_vercel_token()
                 if not vercel_token:
                     _dlog("  [DBG] token ainda nao encontrado após login", "err")
 
