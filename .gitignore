@@ -28,6 +28,8 @@ dashboard/tsconfig.tsbuildinfo
 dist/
 build/
 *.spec
+!FinanceBotSetup.spec
+!FinanceBotUpdate.spec
 dashboard/.vercel/
 
 # Ferramentas locais de desenvolvimento (tools/)
