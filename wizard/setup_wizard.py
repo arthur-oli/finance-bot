@@ -2243,26 +2243,7 @@ class Wizard(tk.Tk):
             with open(os.path.join(DASHBOARD_DIR, "vercel.json"), "w") as f:
                 f.write("{}\n")
 
-            # 1ª etapa: deploy inicial para criar/linkar o projeto no Vercel
-            _dlog("  [DBG] 1º deploy — criando projeto no Vercel…")
-            ok1, out1 = _run(["npx", "--yes", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
-            _dlog(f"  [DBG] 1º deploy ok={ok1}")
-
-            # Ler projectId do .vercel/project.json criado pelo deploy
-            _proj_json = os.path.join(DASHBOARD_DIR, ".vercel", "project.json")
-            project_id = None
-            if os.path.exists(_proj_json):
-                try:
-                    with open(_proj_json) as _f:
-                        _pdata = json.load(_f)
-                    project_id = _pdata.get("projectId")
-                    _dlog(f"  [DBG] projectId={project_id}")
-                except Exception as _e:
-                    _dlog(f"  [DBG] erro ao ler project.json: {_e}")
-            else:
-                _dlog("  [DBG] .vercel/project.json NAO encontrado")
-
-            # Ler token de auth do Vercel CLI (salvo no disco após login)
+            # Ler token de auth do Vercel CLI ANTES do deploy (evita travamento por seleção de scope)
             vercel_token = None
             for _tp in [
                 os.path.join(os.environ.get("LOCALAPPDATA", ""), "com.vercel.cli", "auth.json"),
@@ -2278,6 +2259,29 @@ class Wizard(tk.Tk):
                         pass
             if not vercel_token:
                 _dlog("  [DBG] token Vercel NAO encontrado — vars serao configuradas manualmente")
+
+            _vcmd = ["npx", "--yes", "vercel", "--prod", "--yes"]
+            if vercel_token:
+                _vcmd += ["--token", vercel_token]
+
+            # 1ª etapa: deploy inicial para criar/linkar o projeto no Vercel
+            _dlog("  [DBG] 1º deploy — criando projeto no Vercel…")
+            ok1, out1 = _run(_vcmd, cwd=DASHBOARD_DIR)
+            _dlog(f"  [DBG] 1º deploy ok={ok1}")
+
+            # Ler projectId do .vercel/project.json criado pelo deploy
+            _proj_json = os.path.join(DASHBOARD_DIR, ".vercel", "project.json")
+            project_id = None
+            if os.path.exists(_proj_json):
+                try:
+                    with open(_proj_json) as _f:
+                        _pdata = json.load(_f)
+                    project_id = _pdata.get("projectId")
+                    _dlog(f"  [DBG] projectId={project_id}")
+                except Exception as _e:
+                    _dlog(f"  [DBG] erro ao ler project.json: {_e}")
+            else:
+                _dlog("  [DBG] .vercel/project.json NAO encontrado")
 
             # Setar env vars via REST API (sem CLI, sem travamento)
             if project_id and vercel_token:
@@ -2330,7 +2334,7 @@ class Wizard(tk.Tk):
 
                 # 2ª etapa: redeploy com as env vars já configuradas
                 _dlog("  [DBG] 2º deploy — com env vars configuradas…")
-                ok, out = _run(["npx", "--yes", "vercel", "--prod", "--yes"], cwd=DASHBOARD_DIR)
+                ok, out = _run(_vcmd, cwd=DASHBOARD_DIR)
                 _dlog(f"  [DBG] 2º deploy ok={ok}")
             else:
                 ok, out = ok1, out1
