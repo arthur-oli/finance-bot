@@ -869,39 +869,48 @@ class Wizard(tk.Tk):
 
         def _winget_run(pkg_id, log_fn):
             self._wlog(f"winget install {pkg_id}")
-            r = subprocess.run(
-                ["winget", "install", "-e", "--id", pkg_id,
-                 "--accept-source-agreements", "--accept-package-agreements", "--silent"],
-                capture_output=True, text=True, encoding="utf-8",
-                errors="replace", creationflags=NO_WIN)
-            if r.returncode == 0:
-                log_fn(f"winget: concluído (código 0).", "ok")
-            else:
-                log_fn(f"winget: falhou (código {r.returncode}).", "err")
-                out = (r.stdout or "").strip()
-                if out:
-                    for line in out.splitlines()[-6:]:
-                        log_fn(f"  {line}")
-            self._wlog(f"winget {pkg_id} rc={r.returncode}")
-            return r.returncode == 0
+            try:
+                r = subprocess.run(
+                    ["winget", "install", "-e", "--id", pkg_id,
+                     "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", creationflags=NO_WIN, timeout=300)
+                if r.returncode == 0:
+                    log_fn(f"winget: concluído (código 0).", "ok")
+                else:
+                    log_fn(f"winget: falhou (código {r.returncode}).", "err")
+                    out = (r.stdout or "").strip()
+                    if out:
+                        for line in out.splitlines()[-6:]:
+                            log_fn(f"  {line}")
+                self._wlog(f"winget {pkg_id} rc={r.returncode}")
+                return r.returncode == 0
+            except subprocess.TimeoutExpired:
+                log_fn("winget: tempo esgotado após 5 min. Verifique sua conexão e tente novamente.", "err")
+                self._wlog(f"winget {pkg_id} timeout")
+                return False
 
         def _inst_fly(log_fn):
             self._wlog("_inst_fly: iniciando")
             log_fn("Instalando Fly CLI via script oficial do Fly.io…")
-            r2 = subprocess.run(
-                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
-                 "iwr https://fly.io/install.ps1 -useb | iex"],
-                capture_output=True, text=True, encoding="utf-8",
-                errors="replace", creationflags=NO_WIN)
-            if r2.returncode == 0:
-                log_fn("Script do Fly.io: concluído.", "ok")
-            else:
-                log_fn(f"Script do Fly.io: falhou (código {r2.returncode}).", "err")
-                out = (r2.stdout or "").strip()
-                if out:
-                    for line in out.splitlines()[-6:]:
-                        log_fn(f"  {line}")
-            self._wlog(f"_inst_fly: rc={r2.returncode}")
+            try:
+                r2 = subprocess.run(
+                    ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
+                     "iwr https://fly.io/install.ps1 -useb | iex"],
+                    capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", creationflags=NO_WIN, timeout=300)
+                if r2.returncode == 0:
+                    log_fn("Script do Fly.io: concluído.", "ok")
+                else:
+                    log_fn(f"Script do Fly.io: falhou (código {r2.returncode}).", "err")
+                    out = (r2.stdout or "").strip()
+                    if out:
+                        for line in out.splitlines()[-6:]:
+                            log_fn(f"  {line}")
+                self._wlog(f"_inst_fly: rc={r2.returncode}")
+            except subprocess.TimeoutExpired:
+                log_fn("Script do Fly.io: tempo esgotado após 5 min. Verifique sua conexão.", "err")
+                self._wlog("_inst_fly: timeout")
             log_fn("Verificando Fly CLI no PATH e em locais de instalação…")
 
         def _inst_node(log_fn):
@@ -1096,7 +1105,7 @@ class Wizard(tk.Tk):
                 nb.config(state="disabled", bg=PANEL2, fg=TEXT)
                 return
             if os.path.exists(path) and os.listdir(path):
-                status_lbl.config(text="✗  Pasta já existe e não está vazia.", fg=RED)
+                status_lbl.config(text="✗  Pasta já existe e não está vazia. Apague-a ou escolha outro destino.", fg=RED)
                 nb.config(state="disabled", bg=PANEL2, fg=TEXT)
             else:
                 status_lbl.config(text="✓  Pronto para instalar.", fg=GREEN)
@@ -1291,7 +1300,8 @@ class Wizard(tk.Tk):
 
         # Auto-open button using saved project ID
         proj_id = self._var("SUPABASE_PROJECT_ID").get().strip()
-        api_url = f"https://supabase.com/dashboard/project/{proj_id}/settings/api-keys"
+        api_url = (f"https://supabase.com/dashboard/project/{proj_id}/settings/api-keys"
+                   if proj_id else "https://supabase.com/dashboard")
 
         info = tk.Frame(body, bg=PANEL, pady=14, padx=16)
         info.pack(fill="x")
@@ -1340,7 +1350,7 @@ class Wizard(tk.Tk):
             return False, "✗  Formato: 123456789:ABCdefGHIjkl..."
 
         _next = self._page_review if return_to_review else self._page_telegram_id
-        _back = self._page_review if return_to_review else self._page_supabase
+        _back = self._page_review if return_to_review else self._page_supabase_keys
         nb = self._footer(p,
                           back_fn=lambda: self._show(_back),
                           next_fn=lambda: self._show(_next),
@@ -1620,14 +1630,16 @@ class Wizard(tk.Tk):
             if not fly_ok[0] or not re.match(r'^[a-z0-9][a-z0-9-]{2,28}[a-z0-9]$', name):
                 return
             self.after(0, lambda: avail_lbl[idx].config(text="⏳ verificando…", fg=DIM))
-            r = subprocess.run(["fly", "apps", "list"], capture_output=True,
-                                text=True, encoding="utf-8", creationflags=NO_WIN, timeout=15)
-            if name in (r.stdout or ""):
-                msg, col = "✓  App existente na sua conta — será reutilizado", GREEN
-                avail[idx] = True
-            else:
-                msg, col = "✓  Disponível — será criado no deploy", GREEN
-                avail[idx] = True
+            try:
+                r = subprocess.run(["fly", "apps", "list"], capture_output=True,
+                                    text=True, encoding="utf-8", creationflags=NO_WIN, timeout=15)
+                if name in (r.stdout or ""):
+                    msg, col = "✓  App existente na sua conta — será reutilizado", GREEN
+                else:
+                    msg, col = "✓  Disponível — será criado no deploy", GREEN
+            except (subprocess.TimeoutExpired, Exception):
+                msg, col = "⚠  Não verificado (Fly.io lento) — será criado no deploy", DIM
+            avail[idx] = True
             self.after(0, lambda m=msg, c=col: (
                 avail_lbl[idx].config(text=m, fg=c),
                 _refresh_nb(),
@@ -2100,10 +2112,22 @@ class Wizard(tk.Tk):
         self._wlog(f"DASHBOARD_DIR={DASHBOARD_DIR}")
         self.after(0, lambda: _log(f"  [LOG] {self._LOG_CANDIDATES[0]}"))
 
-        def _run(args, cwd=None, stdin_val=None):
+        def _run(args, cwd=None, stdin_val=None, timeout=None):
             cmd_str = " ".join(str(a) for a in args)
             _dlog(f"  [CMD] {cmd_str}")
             proc = _popen(args, cwd=cwd)
+            _timed_out = [False]
+            _timer = None
+            if timeout:
+                def _kill():
+                    _timed_out[0] = True
+                    _dlog(f"  [DBG] timeout após {timeout}s — encerrando processo", "err")
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                _timer = threading.Timer(timeout, _kill)
+                _timer.start()
             out_lines = []
             try:
                 if stdin_val is not None:
@@ -2117,15 +2141,23 @@ class Wizard(tk.Tk):
                 tag = "err" if re.search(r"\b(error|failed|fatal)\b", line, re.I) else None
                 _dlog(line, tag)
             proc.wait()
+            if _timer:
+                _timer.cancel()
+            if _timed_out[0]:
+                out_lines.append("ERRO: comando excedeu o tempo limite.")
             _dlog(f"  [RET] código={proc.returncode}")
-            return proc.returncode == 0, "\n".join(out_lines)
+            return proc.returncode == 0 and not _timed_out[0], "\n".join(out_lines)
 
         def _fly_exists(name):
             _dlog(f"  [DBG] verificando se app '{name}' existe no Fly…")
-            r = subprocess.run(["fly", "apps", "list"], capture_output=True,
-                               text=True, encoding="utf-8", creationflags=NO_WIN)
-            _dlog(f"  [DBG] fly apps list rc={r.returncode}, found={name in r.stdout}")
-            return name in r.stdout
+            try:
+                r = subprocess.run(["fly", "apps", "list"], capture_output=True,
+                                   text=True, encoding="utf-8", creationflags=NO_WIN, timeout=20)
+                _dlog(f"  [DBG] fly apps list rc={r.returncode}, found={name in r.stdout}")
+                return name in r.stdout
+            except (subprocess.TimeoutExpired, Exception) as _e:
+                _dlog(f"  [DBG] fly apps list erro: {_e} — assumindo que não existe")
+                return False
 
         def deploy():
             if DEMO:
@@ -2162,11 +2194,21 @@ class Wizard(tk.Tk):
             _set_step(0, "running")
             _dlog("\n── Servidor principal ──", "hdr")
             _dlog(f"  [DBG] atualizando {BACKEND_TOML}…")
-            _update_toml(BACKEND_TOML, bapp)
+            try:
+                _update_toml(BACKEND_TOML, bapp)
+            except Exception as _e:
+                _dlog(f"  ERRO: fly.toml do backend não encontrado — {_e}", "err")
+                _set_step(0, "error", out=str(_e))
+                return
             _dlog("  [DBG] toml atualizado")
             exists = _fly_exists(bapp)
             if not exists:
-                _run(["fly", "apps", "create", bapp])
+                ok_c, out_c = _run(["fly", "apps", "create", bapp])
+                if not ok_c:
+                    _dlog(f"  ERRO: não foi possível criar o app '{bapp}' no Fly.io.", "err")
+                    _dlog("  Verifique se o nome já está em uso globalmente ou tente outro nome.", "err")
+                    _set_step(0, "error", out=out_c)
+                    return
             # Copy schema.sql into backend dir so Docker COPY picks it up
             import shutil as _shutil
             schema_copied = os.path.exists(SCHEMA_SQL)
@@ -2205,12 +2247,21 @@ class Wizard(tk.Tk):
             _set_step(1, "running")
             _dlog("\n── Bot do Telegram ──", "hdr")
             _dlog(f"  [DBG] atualizando {BOT_TOML}…")
-            _update_toml(BOT_TOML, botapp,
-                         [(r'BACKEND_URL\s*=.*', f'BACKEND_URL = "{burl}"')])
+            try:
+                _update_toml(BOT_TOML, botapp,
+                             [(r'BACKEND_URL\s*=.*', f'BACKEND_URL = "{burl}"')])
+            except Exception as _e:
+                _dlog(f"  ERRO: fly.toml do bot não encontrado — {_e}", "err")
+                _set_step(1, "error", out=str(_e))
+                return
             _dlog("  [DBG] toml bot atualizado")
-            _fly_exists(botapp)  # logged inside
             if not _fly_exists(botapp):
-                _run(["fly", "apps", "create", botapp])
+                ok_c, out_c = _run(["fly", "apps", "create", botapp])
+                if not ok_c:
+                    _dlog(f"  ERRO: não foi possível criar o app '{botapp}' no Fly.io.", "err")
+                    _dlog("  Verifique se o nome já está em uso globalmente ou tente outro nome.", "err")
+                    _set_step(1, "error", out=out_c)
+                    return
             _dlog("  [DBG] rodando fly secrets set (bot)…")
             ok, out = _run([
                 "fly", "secrets", "set",
@@ -2292,7 +2343,7 @@ class Wizard(tk.Tk):
 
             # 1ª etapa: deploy inicial para criar/linkar o projeto no Vercel
             _dlog("  [DBG] 1º deploy — criando projeto no Vercel…")
-            ok1, out1 = _run(_vcmd, cwd=DASHBOARD_DIR)
+            ok1, out1 = _run(_vcmd, cwd=DASHBOARD_DIR, timeout=300)
             _dlog(f"  [DBG] 1º deploy ok={ok1}")
 
             # Ler projectId do .vercel/project.json criado pelo deploy
@@ -2360,7 +2411,7 @@ class Wizard(tk.Tk):
 
                 # 2ª etapa: redeploy com as env vars já configuradas
                 _dlog("  [DBG] 2º deploy — com env vars configuradas…")
-                ok, out = _run(_vcmd, cwd=DASHBOARD_DIR)
+                ok, out = _run(_vcmd, cwd=DASHBOARD_DIR, timeout=300)
                 _dlog(f"  [DBG] 2º deploy ok={ok}")
             else:
                 ok, out = ok1, out1
@@ -2368,7 +2419,7 @@ class Wizard(tk.Tk):
             _set_step(2, "done" if ok else "error", out=out)
 
             match = re.search(r"https://[^\s]+\.vercel\.app", out)
-            dash_url = match.group(0) if match else "(veja vercel.com)"
+            dash_url = match.group(0) if match else "https://vercel.com/dashboard"
             self._info["urls"] = {"backend": burl, "dashboard": dash_url,
                                   "bot": v.get("BOT_APP", "")}
 
