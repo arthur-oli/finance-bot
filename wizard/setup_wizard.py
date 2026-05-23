@@ -165,6 +165,35 @@ def _popen(args, cwd=None, env=None):
     )
 
 
+def _ensure_vercel_cli(log=None):
+    """Garante que `vercel` esteja no PATH. Instala via `npm i -g vercel` se necessario.
+    Evita o overhead do `npx --yes vercel` que baixa o pacote silenciosamente em cada chamada."""
+    if log is None:
+        log = lambda *a, **kw: None
+    if _check(["vercel", "--version"]):
+        return True
+    log("  [DBG] vercel CLI nao encontrado — instalando globalmente via npm…")
+    try:
+        r = subprocess.run(
+            ["npm", "i", "-g", "vercel"],
+            capture_output=True, text=True, timeout=300,
+            encoding="utf-8", errors="replace", creationflags=NO_WIN,
+            env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
+        )
+        if r.returncode == 0:
+            log("  [DBG] vercel CLI instalado.")
+            _refresh_path()
+            return _check(["vercel", "--version"])
+        log(f"  [DBG] npm i -g vercel falhou (rc={r.returncode}): {(r.stdout or '') + (r.stderr or '')}", "err")
+        return False
+    except subprocess.TimeoutExpired:
+        log("  [DBG] npm i -g vercel: timeout apos 5 min.", "err")
+        return False
+    except Exception as _e:
+        log(f"  [DBG] erro ao instalar vercel CLI: {_e}", "err")
+        return False
+
+
 def _update_toml(path, app_name, replacements=None):
     with open(path, encoding="utf-8") as f:
         content = f.read()
@@ -927,6 +956,15 @@ class Wizard(tk.Tk):
                 v = _check_output(["node", "--version"])
                 log_fn(f"node {v}" if v else "node não encontrado no PATH ainda.", "ok" if v else None)
                 self._wlog(f"_inst_node: node version={v}")
+                if v:
+                    log_fn("Instalando Vercel CLI globalmente (npm i -g vercel)…")
+                    if _ensure_vercel_cli(log_fn):
+                        vv = _check_output(["vercel", "--version"])
+                        log_fn(f"vercel {vv}" if vv else "vercel instalado.", "ok")
+                        self._wlog(f"_inst_node: vercel version={vv}")
+                    else:
+                        log_fn("Falha ao instalar Vercel CLI — sera tentado novamente no deploy.", "err")
+                        self._wlog("_inst_node: vercel install falhou")
 
         def _inst_git(log_fn):
             self._wlog("_inst_git: iniciando")
@@ -1781,14 +1819,18 @@ class Wizard(tk.Tk):
                  bg=BG, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w", pady=(14, 0))
 
         def _login_vercel():
+            _ensure_vercel_cli()
             subprocess.Popen(
-                ["cmd.exe", "/c", "npx --yes vercel login"],
+                ["cmd.exe", "/c", "vercel login"],
                 env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             ).wait()
 
+        # Garante o vercel CLI antes do primeiro whoami (evita bloqueio do `npx --yes` baixando o pacote)
+        threading.Thread(target=_ensure_vercel_cli, daemon=True).start()
+
         self._login_card(body, "Vercel",
-                         ["cmd.exe", "/c", "npx --yes vercel whoami"],
+                         ["vercel", "whoami"],
                          _login_vercel, _refresh_nb)
 
         tk.Label(body,
@@ -2352,7 +2394,7 @@ class Wizard(tk.Tk):
                 _lproc = subprocess.Popen(
                     ["cmd.exe", "/c",
                      f"(echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.)"
-                     f" | npx --yes vercel login --global-config \"{_vercel_cfg}\""],
+                     f" | vercel login --global-config \"{_vercel_cfg}\""],
                     env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
@@ -2361,7 +2403,13 @@ class Wizard(tk.Tk):
                 if not vercel_token:
                     _dlog("  [DBG] token ainda não encontrado após login", "err")
 
-            _vcmd = ["npx", "--yes", "vercel", "--prod", "--yes"]
+            # Garante que o CLI esta instalado (idempotente — no-op se ja foi instalado no passo Node)
+            if not _ensure_vercel_cli(_dlog):
+                _dlog("  [ERR] Vercel CLI nao pode ser instalado. Aborte e reinstale o Node.js.", "err")
+                _set_step(2, "error", out="vercel CLI ausente")
+                return
+
+            _vcmd = ["vercel", "--prod", "--yes"]
             if vercel_token:
                 _vcmd += ["--token", vercel_token]
 
