@@ -1,7 +1,10 @@
 import os
+import sys
+import time
 import structlog
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.error import Conflict, InvalidToken
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -62,4 +65,23 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Backoff em erros de configuracao (token invalido, conflito de poller).
+    # Sem isso, Fly.io queima o restart count em poucos segundos e a maquina para.
+    try:
+        main()
+    except InvalidToken:
+        log.error("bot.invalid_token", msg="TELEGRAM_BOT_TOKEN foi rejeitado pelo Telegram. "
+                  "Gere um novo no BotFather (/token) e atualize o secret: "
+                  "fly secrets set TELEGRAM_BOT_TOKEN=<novo> -a <bot-app>")
+        time.sleep(60)  # da tempo do operador ver o erro antes do restart
+        sys.exit(1)
+    except Conflict:
+        log.error("bot.conflict", msg="Outra instancia ja esta fazendo polling com este token. "
+                  "Verifique se ha mais de 1 maquina ativa: "
+                  "fly scale count 1 --max-per-region 1 -a <bot-app>")
+        time.sleep(60)
+        sys.exit(1)
+    except Exception as e:
+        log.exception("bot.fatal", error=str(e))
+        time.sleep(30)
+        raise

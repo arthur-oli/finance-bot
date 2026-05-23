@@ -9,6 +9,12 @@ primary_region = "gru"
 
 # Sem [[services]] pois o bot é um worker, não expõe porta HTTP
 
+# Restart policy: tenta sempre, sem limite. Bot tem sleep no startup que evita
+# burst de restarts em erro de config (token invalido, etc).
+[restart]
+  policy = "always"
+  retries = 0
+
 [[vm]]
   memory = "256mb"
   cpu_kind = "shared"

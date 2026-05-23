@@ -2667,11 +2667,25 @@ class Wizard(tk.Tk):
             ok, out = _run(["fly", "deploy", "--app", botapp, "--wait-timeout", "180"],
                          cwd=ROOT)
             _dlog(f"  [DBG] fly deploy bot ok={ok}")
-            _set_step(1, "done" if ok else "error", out=out)
             if not ok:
                 if "503" in out:
                     _dlog("  ⚠️  Fly.io retornou 503. Aguarde ~1 min e use 'Tentar novamente'.", "err")
+                _set_step(1, "error", out=out)
                 return
+
+            # Garante 1 unica maquina rodando o bot — Telegram so aceita 1 poller por token.
+            # Sem isso, Fly.io cria uma standby que tambem inicia polling → Conflict 409.
+            _dlog("  [DBG] escalando bot pra 1 maquina (evita Conflict no polling)…")
+            ok_scale, out_scale = _run(["fly", "scale", "count", "1",
+                                         "--max-per-region", "1",
+                                         "--yes", "--app", botapp])
+            if not ok_scale:
+                _dlog("  ⚠️  Falha ao escalar pra 1 maquina. Se o bot nao responder, rode manualmente: "
+                      f"fly scale count 1 --max-per-region 1 -a {botapp}", "err")
+            else:
+                _dlog("  [DBG] bot escalado pra 1 maquina")
+
+            _set_step(1, "done", out=out)
 
             _set_step(2, "running")
             _dlog("\n── Painel web ──", "hdr")
