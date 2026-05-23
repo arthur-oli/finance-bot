@@ -1446,6 +1446,9 @@ class Wizard(tk.Tk):
                 return True, "✓  Formato correto"
             return False, "✗  Formato: 123456789:ABCdefGHIjkl..."
 
+        # Estado da validacao remota (getMe): None=pendente, "ok", "unauthorized", "error"
+        _remote = {"state": None, "username": None, "token_checked": None, "after_id": None}
+
         _next = self._page_review if return_to_review else self._page_telegram_id
         _back = self._page_review if return_to_review else self._page_supabase_keys
         nb = self._footer(p,
@@ -1454,10 +1457,81 @@ class Wizard(tk.Tk):
                           next_enabled=False)
 
         def _refresh_nb(*_):
-            ok, _ = _val_token(self._var("TELEGRAM_BOT_TOKEN").get())
+            tok = self._var("TELEGRAM_BOT_TOKEN").get()
+            fmt_ok, _ = _val_token(tok)
+            # Bloqueia Avancar apenas se o Telegram explicitamente rejeitou o token (401).
+            # Erros de rede nao bloqueiam (usuario pode estar offline temporariamente).
+            blocked = _remote["state"] == "unauthorized" and _remote["token_checked"] == tok.strip()
+            ok = fmt_ok and not blocked
             nb.config(state="normal" if ok else "disabled",
                       bg=BLUE if ok else PANEL2,
                       fg="white" if ok else TEXT)
+            _update_remote_status()
+
+        _status_lbl_ref = [None]
+
+        def _update_remote_status():
+            lbl = _status_lbl_ref[0]
+            if not lbl:
+                return
+            tok = self._var("TELEGRAM_BOT_TOKEN").get().strip()
+            fmt_ok, _ = _val_token(tok)
+            if not fmt_ok:
+                lbl.config(text="", fg=DIM)
+                return
+            if _remote["token_checked"] != tok:
+                lbl.config(text="⏳  Validando token com o Telegram…", fg=YELLOW)
+                return
+            s = _remote["state"]
+            if s == "ok":
+                lbl.config(text=f"✅  Bot @{_remote['username']} validado pelo Telegram", fg=GREEN)
+            elif s == "unauthorized":
+                lbl.config(text="❌  Token rejeitado pelo Telegram. Gere um novo no @BotFather (/token).", fg=RED)
+            elif s == "error":
+                lbl.config(text="⚠️  Nao foi possivel validar agora (offline?). Voce pode avancar.", fg=YELLOW)
+            else:
+                lbl.config(text="", fg=DIM)
+
+        def _do_remote_check():
+            _remote["after_id"] = None
+            tok = self._var("TELEGRAM_BOT_TOKEN").get().strip()
+            fmt_ok, _ = _val_token(tok)
+            if not fmt_ok:
+                return
+            if _remote["token_checked"] == tok and _remote["state"] is not None:
+                return  # ja validado
+            def _worker(_tok=tok):
+                import urllib.request, urllib.error, json, ssl
+                url = f"https://api.telegram.org/bot{_tok}/getMe"
+                try:
+                    try:
+                        r = urllib.request.urlopen(url, timeout=8)
+                    except urllib.error.URLError as _se:
+                        if "CERTIFICATE_VERIFY_FAILED" in str(_se):
+                            r = urllib.request.urlopen(url, timeout=8, context=ssl._create_unverified_context())
+                        else:
+                            raise
+                    body = json.loads(r.read())
+                    if body.get("ok"):
+                        _remote["state"], _remote["username"] = "ok", body["result"]["username"]
+                    else:
+                        _remote["state"] = "unauthorized"
+                except urllib.error.HTTPError as _he:
+                    _remote["state"] = "unauthorized" if _he.code == 401 else "error"
+                except Exception:
+                    _remote["state"] = "error"
+                _remote["token_checked"] = _tok
+                self.after(0, _refresh_nb)
+            threading.Thread(target=_worker, daemon=True).start()
+
+        def _schedule_remote_check(*_):
+            # Debounce: usuario pode estar digitando — espera 800ms apos a ultima tecla.
+            if _remote["after_id"]:
+                self.after_cancel(_remote["after_id"])
+            _remote["state"] = None
+            _remote["token_checked"] = None
+            _update_remote_status()
+            _remote["after_id"] = self.after(800, _do_remote_check)
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(8, 0))
@@ -1511,7 +1585,15 @@ class Wizard(tk.Tk):
         v, _, _ = self._field(body, "TELEGRAM_BOT_TOKEN", "Token do bot",
                                hint="Formato:  123456789:ABCdefGHIjklMNOpqr...",
                                secret=True, validate_fn=_val_token)
+        # Status label da validacao remota (getMe). Logo abaixo do campo.
+        _status_lbl_ref[0] = tk.Label(body, text="", bg=BG, fg=DIM,
+                                      font=(FONT, 9), justify="left", anchor="w")
+        _status_lbl_ref[0].pack(anchor="w", padx=2, pady=(2, 0))
         v.trace_add("write", _refresh_nb)
+        v.trace_add("write", _schedule_remote_check)
+        # Dispara primeira validacao se ja tem token (retomada de progresso)
+        if v.get().strip():
+            _schedule_remote_check()
         _refresh_nb()
 
         # Dica de uso em grupo
