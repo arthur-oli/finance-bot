@@ -208,6 +208,42 @@ def _resolve_cmd(name):
     return name
 
 
+def _find_vercel_token_global():
+    """Procura o token do Vercel CLI nos locais conhecidos. Retorna o token ou None.
+    Versao 'global' (sem logging) usada fora do contexto de deploy."""
+    import glob as _glob
+    _sys_drive = os.environ.get("SystemDrive", "C:")
+    _local = os.environ.get("LOCALAPPDATA", "")
+    _roam  = os.environ.get("APPDATA", "")
+    _home  = os.environ.get("USERPROFILE", "")
+    _candidates = []
+    if _local:
+        _candidates.append(os.path.join(_local, "com.vercel.cli", "auth.json"))
+    if _roam:
+        _candidates.append(os.path.join(_roam, "xdg.data", "com.vercel.cli", "auth.json"))
+        _candidates.append(os.path.join(_roam, "com.vercel.cli", "auth.json"))
+    if _home:
+        _candidates.append(os.path.join(_home, ".vercel", "auth.json"))
+        _candidates.append(os.path.join(_home, ".local", "share", "com.vercel.cli", "auth.json"))
+    _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\AppData\\Roaming\\xdg.data\\com.vercel.cli\\auth.json")
+    _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\AppData\\Local\\com.vercel.cli\\auth.json")
+    seen = set()
+    for _tp in _candidates:
+        _tp = os.path.normpath(_tp)
+        if _tp in seen or not os.path.exists(_tp):
+            seen.add(_tp)
+            continue
+        seen.add(_tp)
+        try:
+            with open(_tp, encoding="utf-8") as _f:
+                _tok = json.load(_f).get("token")
+            if _tok:
+                return _tok
+        except Exception:
+            pass
+    return None
+
+
 def _ensure_vercel_cli(log=None):
     """Garante que `vercel` esteja no PATH. Instala via `npm i -g vercel` se necessario.
     Evita o overhead do `npx --yes vercel` que baixa o pacote silenciosamente em cada chamada."""
@@ -1540,16 +1576,16 @@ class Wizard(tk.Tk):
         top = tk.Frame(body, bg=BG)
         top.pack(fill="x")
 
-        instr = tk.Frame(top, bg=PANEL, pady=8, padx=12)
+        instr = tk.Frame(top, bg=PANEL, pady=4, padx=12)
         instr.pack(side="left", fill="both", expand=True)
 
         for num, text, url, btn_label in [
-            ("1.", "Abra o @BotFather no Telegram, ou procure no aplicativo de celular", "https://t.me/BotFather", "Abrir BotFather"),
+            ("1.", "Abra o @BotFather no Telegram, ou abra o Telegram no PC", "https://t.me/BotFather", "Abrir BotFather"),
             ("2.", "Envie  /newbot  e siga as instruções\nEscolha um nome.\nEscolha um username, ele deve terminar em  bot", None, None),
-            ("3.", "O BotFather vai te enviar um token — copie e cole abaixo", None, None),
+            ("3.", "Copie o token que o BotFather enviou e cole abaixo.\n💡 Pra evitar digitar: encaminhe a mensagem pro WhatsApp/e-mail e copie de lá no PC.", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=2, fill="x")
+            row.pack(anchor="w", pady=1, fill="x")
             tk.Label(row, text=num, bg=PANEL, fg=BLUE,
                      font=(FONT, 9, "bold"), width=3).pack(side="left", anchor="n")
             col = tk.Frame(row, bg=PANEL)
@@ -1561,11 +1597,11 @@ class Wizard(tk.Tk):
                           command=lambda u=url: webbrowser.open(u),
                           bg=PANEL2, fg="white", relief="flat",
                           font=(FONT, 8, "bold"), padx=8, pady=2,
-                          cursor="hand2").pack(anchor="w", pady=(3, 0))
+                          cursor="hand2").pack(anchor="w", pady=(2, 0))
 
-        # QR code
+        # QR code — stretch vertical pra alinhar altura com o card cinza ao lado
         qr_frame = tk.Frame(top, bg="white", padx=10, pady=8)
-        qr_frame.pack(side="left", padx=(6, 0))
+        qr_frame.pack(side="left", fill="y", padx=(6, 0))
         try:
             _qr_raw = Image.open(_asset("qr_botfather.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
@@ -1576,11 +1612,9 @@ class Wizard(tk.Tk):
             _qr_tk = ImageTk.PhotoImage(_canvas)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg="white")
             lbl.image = _qr_tk
-            lbl.pack()
+            lbl.pack(expand=True)
         except Exception:
             pass
-        tk.Label(qr_frame, text="Escanear\ncom o celular", bg="white", fg=DIM,
-                 font=(FONT, 8), justify="center").pack(pady=(4, 0))
 
         v, _, _ = self._field(body, "TELEGRAM_BOT_TOKEN", "Token do bot",
                                hint="Formato:  123456789:ABCdefGHIjklMNOpqr...",
@@ -1643,17 +1677,17 @@ class Wizard(tk.Tk):
         top = tk.Frame(body, bg=BG)
         top.pack(fill="x")
 
-        instr = tk.Frame(top, bg=PANEL, pady=8, padx=12)
+        instr = tk.Frame(top, bg=PANEL, pady=4, padx=12)
         instr.pack(side="left", fill="both", expand=True)
 
         for num, text, url, btn_label in [
-            ("1.", "Abra o @userinfobot no Telegram, ou procure no aplicativo de celular", "https://t.me/userinfobot", "Abrir userinfobot"),
+            ("1.", "Abra o @userinfobot no Telegram, ou abra o Telegram no PC", "https://t.me/userinfobot", "Abrir userinfobot"),
             ("2.", "Digite  /start", None, None),
             ("3.", "Ele vai te responder com seu ID numérico — copie e cole abaixo", None, None),
             ("4.", "Repita: clique em  User  e escolha cada usuário que deve ter acesso ao bot", None, None),
         ]:
             row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=2, fill="x")
+            row.pack(anchor="w", pady=1, fill="x")
             tk.Label(row, text=num, bg=PANEL, fg=BLUE,
                      font=(FONT, 9, "bold"), width=3).pack(side="left", anchor="n")
             col = tk.Frame(row, bg=PANEL)
@@ -1665,11 +1699,11 @@ class Wizard(tk.Tk):
                           command=lambda u=url: webbrowser.open(u),
                           bg=PANEL2, fg="white", relief="flat",
                           font=(FONT, 8, "bold"), padx=8, pady=2,
-                          cursor="hand2").pack(anchor="w", pady=(3, 0))
+                          cursor="hand2").pack(anchor="w", pady=(2, 0))
 
-        # QR code
+        # QR code — stretch vertical pra alinhar altura com o card cinza ao lado
         qr_frame = tk.Frame(top, bg="white", padx=10, pady=8)
-        qr_frame.pack(side="left", padx=(6, 0))
+        qr_frame.pack(side="left", fill="y", padx=(6, 0))
         try:
             _qr_raw = Image.open(_asset("qr_userinfobot.png")).convert("RGBA")
             _qr_raw.thumbnail((130, 130), Image.LANCZOS)
@@ -1680,11 +1714,9 @@ class Wizard(tk.Tk):
             _qr_tk = ImageTk.PhotoImage(_canvas)
             lbl = tk.Label(qr_frame, image=_qr_tk, bg="white")
             lbl.image = _qr_tk
-            lbl.pack()
+            lbl.pack(expand=True)
         except Exception:
             pass
-        tk.Label(qr_frame, text="Escanear\ncom o celular", bg="white", fg=DIM,
-                 font=(FONT, 8), justify="center").pack(pady=(4, 0))
 
         v, _, _ = self._field(body, "TELEGRAM_USER_IDS", "IDs de usuário (todos que vão usar o bot)",
                                hint="Um ou mais IDs separados por vírgula, ex: 123456789,987654321",
@@ -1695,8 +1727,8 @@ class Wizard(tk.Tk):
         tip = tk.Frame(body, bg=PANEL2, pady=6, padx=14)
         tip.pack(fill="x", pady=(8, 0))
         tk.Label(tip,
-                 text="💡  Para usar o bot em grupo: peça o ID de cada pessoa no @userinfobot e separe por vírgula.",
-                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left").pack(anchor="w")
+                 text="💡  Para liberar acesso a mais pessoas: no @userinfobot, clique em  User  e envie o contato de quem também vai usar o bot — ele responde com o ID. Separe os IDs por vírgula.",
+                 bg=PANEL2, fg=MUTED, font=(FONT, 9), justify="left", wraplength=680).pack(anchor="w")
 
         return p
 
@@ -1731,32 +1763,50 @@ class Wizard(tk.Tk):
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
 
-        instr = tk.Frame(body, bg=PANEL, pady=12, padx=16)
-        instr.pack(fill="x")
+        info = tk.Frame(body, bg=PANEL, pady=14, padx=16)
+        info.pack(fill="x")
 
-        for num, text, url, btn_label in [
-            ("1.", "Crie sua conta gratuita — confirme o e-mail de verificação\n"
-                   "(verifique o lixo eletrônico se não receber)", "https://console.groq.com", "Abrir console.groq.com"),
-            ("2.", "No menu superior, clique em  API Keys", "https://console.groq.com/keys", "Abrir API Keys"),
-            ("3.", "Clique em  Create API Key, dê um nome (ex: finance-bot)\n"
-                   "No campo de validade, selecione  No expiration\n"
-                   "Clique em  Submit\n"
-                   "⚠️  A chave aparece UMA VEZ SÓ — copie antes de fechar", None, None),
-        ]:
-            row = tk.Frame(instr, bg=PANEL)
-            row.pack(anchor="w", pady=3, fill="x")
-            tk.Label(row, text=num, bg=PANEL, fg=BLUE,
-                     font=(FONT, 9, "bold"), width=3).pack(side="left", anchor="n")
-            col = tk.Frame(row, bg=PANEL)
-            col.pack(side="left")
-            tk.Label(col, text=text, bg=PANEL, fg=MUTED,
-                     font=(FONT, 9), justify="left").pack(anchor="w")
-            if url and btn_label:
-                tk.Button(col, text=btn_label + "  →",
-                          command=lambda u=url: webbrowser.open(u),
-                          bg=PANEL2, fg="white", relief="flat",
-                          font=(FONT, 8, "bold"), padx=8, pady=3,
-                          cursor="hand2").pack(anchor="w", pady=(3, 0))
+        # ── Passo 1: criar conta ──
+        signup_top = tk.Frame(info, bg=PANEL)
+        signup_top.pack(fill="x")
+        col1 = tk.Frame(signup_top, bg=PANEL)
+        col1.pack(side="left", fill="x", expand=True)
+        tk.Label(col1, text="1.  Crie sua conta gratuita (se ainda não tem)",
+                 bg=PANEL, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w")
+        tk.Label(col1, text="Pode entrar com Google ou GitHub. Confirme o e-mail se pedir (cheque o lixo eletrônico).",
+                 bg=PANEL, fg=DIM, font=(FONT, 9), wraplength=560,
+                 justify="left").pack(anchor="w", pady=(3, 0))
+        tk.Button(signup_top, text="Abrir cadastro  →",
+                  command=lambda: webbrowser.open("https://console.groq.com"),
+                  bg=PANEL2, fg="white", relief="flat",
+                  font=(FONT, 9, "bold"), padx=12, pady=6,
+                  cursor="hand2").pack(side="right")
+
+        tk.Frame(info, bg=PANEL2, height=1).pack(fill="x", pady=10)
+
+        # ── Passo 2: abrir página de API Keys (botão prominente) ──
+        keys_top = tk.Frame(info, bg=PANEL)
+        keys_top.pack(fill="x")
+        col2 = tk.Frame(keys_top, bg=PANEL)
+        col2.pack(side="left", fill="x", expand=True)
+        tk.Label(col2, text="2.  Abra a página de API Keys",
+                 bg=PANEL, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w")
+        tk.Label(col2, text="Já com a conta criada e logada.",
+                 bg=PANEL, fg=DIM, font=(FONT, 9)).pack(anchor="w", pady=(3, 0))
+        tk.Button(keys_top, text="Abrir API Keys  →",
+                  command=lambda: webbrowser.open("https://console.groq.com/keys"),
+                  bg=BLUE, fg="white", relief="flat",
+                  font=(FONT, 9, "bold"), padx=12, pady=6,
+                  cursor="hand2").pack(side="right")
+
+        tk.Frame(info, bg=PANEL2, height=1).pack(fill="x", pady=10)
+
+        # ── Passo 3: criar a chave ──
+        tk.Label(info,
+                 text="3.  Clique em  Create API Key,  dê um nome (ex: finance-bot)\n"
+                      "    Em validade, selecione  No expiration  e clique em  Submit\n"
+                      "    ⚠️  A chave aparece UMA VEZ SÓ — copie antes de fechar",
+                 bg=PANEL, fg=MUTED, font=(FONT, 10, "bold"), justify="left").pack(anchor="w")
 
         v, _, _ = self._field(body, "GROQ_API_KEY", "Chave da API",
                                hint="Começa com  gsk_...  (bem longa)",
@@ -1856,18 +1906,16 @@ class Wizard(tk.Tk):
                   font=(FONT, 9, "bold"), padx=10, pady=6, cursor="hand2").pack(side="right")
 
         # Aviso de cartao — destacado (sem ele a conta nao funciona)
-        warn = tk.Frame(zone1, bg="#3f2a13", padx=14, pady=10)
-        warn.pack(fill="x", pady=(10, 2))
+        warn = tk.Frame(zone1, bg="#3f2a13", padx=12, pady=6)
+        warn.pack(fill="x", pady=(6, 0))
         tk.Label(warn,
                  text="⚠️  É OBRIGATÓRIO cadastrar um cartão de crédito",
                  bg="#3f2a13", fg=YELLOW, font=(FONT, 10, "bold"),
                  justify="left").pack(anchor="w")
         tk.Label(warn,
-                 text="Sem cartão, o Fly.io não libera nem o plano gratuito — o deploy do bot vai falhar.\n"
-                      "Não há cobrança: usamos só 2 máquinas (limite gratuito é 3).\n"
-                      "💡  Para mais segurança, crie um cartão virtual com limite de R$ 1 no app do seu banco.",
+                 text="Sem ele, nem o plano gratuito é liberado e o deploy falha. Não há cobrança (usamos 2 de 3 máquinas grátis).\n💡 Use cartão virtual com R$1 de limite pra mais segurança.",
                  bg="#3f2a13", fg="#fde68a", font=(FONT, 9), justify="left",
-                 wraplength=620).pack(anchor="w", pady=(4, 0))
+                 wraplength=620).pack(anchor="w", pady=(2, 0))
 
         # Zone 2 — login
         tk.Label(body, text="2.  Conectar o assistente à sua conta",
@@ -1889,8 +1937,12 @@ class Wizard(tk.Tk):
                          _login_fly, _after_fly_login)
 
         # Zone 3 — app names
-        tk.Label(body, text="3.  Escolha nomes para os servidores",
-                 bg=BG, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w", pady=(6, 0))
+        tk.Label(body, text="3.  Escolha nomes para os servidores  (opcional)",
+                 bg=BG, fg=MUTED, font=(FONT, 10, "bold")).pack(anchor="w", pady=(4, 0))
+        tk.Label(body,
+                 text="Servidores internos — você nunca vai abrir essas URLs. Os nomes já gerados funcionam.",
+                 bg=BG, fg=DIM, font=(FONT, 9), wraplength=680,
+                 justify="left").pack(anchor="w")
 
         suffix = secrets.token_hex(2)
         self._var("BACKEND_APP", f"finance-api-{suffix}")
@@ -2001,8 +2053,8 @@ class Wizard(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     def _page_vercel_password(self, return_to_review=False):
         p = tk.Frame(self, bg=BG)
-        self._header(p, "Vercel — senha do painel",
-                     "Defina a senha para acessar o painel web.",
+        self._header(p, "Painel web — endereço e senha",
+                     "Escolha o endereço do seu painel e defina a senha de acesso.",
                      phase=1, provider_idx=4)
 
         def _val_pw(v):
@@ -2011,6 +2063,17 @@ class Wizard(tk.Tk):
             if len(v) >= 6:
                 return True, "✓  Tamanho OK"
             return False, "✗  Mínimo 6 caracteres"
+
+        def _val_proj_name(v):
+            v = v.strip().lower()
+            if not v:
+                return False, "✗  Obrigatório"
+            if not re.match(r"^[a-z0-9]([a-z0-9-]{1,48}[a-z0-9])?$", v):
+                return False, "✗  Apenas letras minúsculas, números e hífen (3–50 caracteres)"
+            return True, f"✓  URL: https://{v}.vercel.app"
+
+        # Estado do check ao vivo de disponibilidade do projeto Vercel
+        _avail = {"state": None, "name_checked": None, "after_id": None}
 
         _back = self._page_review if return_to_review else self._page_vercel_login
         nb = self._footer(p,
@@ -2021,23 +2084,146 @@ class Wizard(tk.Tk):
         def _refresh_nb(*_):
             pw1 = self._var("DASHBOARD_PASSWORD").get()
             pw2 = self._var("DASHBOARD_PASSWORD2").get()
-            ok = len(pw1) >= 6 and pw1 == pw2
+            tok_name = self._var("VERCEL_PROJECT_NAME").get().strip().lower()
+            name_ok, _ = _val_proj_name(tok_name)
+            # Bloqueia apenas se 'taken' (nome em conta alheia, retorna 403)
+            blocked = _avail["state"] == "taken" and _avail["name_checked"] == tok_name
+            ok = len(pw1) >= 6 and pw1 == pw2 and name_ok and not blocked
             nb.config(state="normal" if ok else "disabled",
                       bg=BLUE if ok else PANEL2,
                       fg="white" if ok else MUTED)
+            _update_avail_status()
 
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(14, 0))
 
-        # Security note
-        note = tk.Frame(body, bg=PANEL, pady=12, padx=16)
-        note.pack(fill="x")
-        tk.Label(note,
-                 text="🔐  Use uma senha segura e guarde-a em local seguro.",
-                 bg=PANEL, fg=TEXT, font=(FONT, 10, "bold")).pack(anchor="w")
-        tk.Label(note,
-                 text="Você vai precisar dela quando acessar o painel, de tempos em tempos. Não há recuperação automática.",
-                 bg=PANEL, fg=DIM, font=(FONT, 9), wraplength=640, justify="left").pack(anchor="w", pady=(4, 0))
+        # Pre-popula nome com um default razoavel se ainda vazio
+        if not self._var("VERCEL_PROJECT_NAME").get():
+            self._var("VERCEL_PROJECT_NAME").set(f"finance-{secrets.token_hex(2)}")
+
+        # ── Layout 2-col: URL (esq) | Senha (dir) ──
+        cols = tk.Frame(body, bg=BG)
+        cols.pack(fill="both", expand=True)
+
+        col_url = tk.Frame(cols, bg=BG)
+        col_url.pack(side="left", fill="both", expand=True, padx=(0, 5))
+        col_pw  = tk.Frame(cols, bg=BG)
+        col_pw.pack(side="left", fill="both", expand=True, padx=(5, 0))
+
+        # ── Card URL ──
+        url_banner = tk.Frame(col_url, bg="#0f3a5c", pady=10, padx=14)
+        url_banner.pack(fill="x")
+        tk.Label(url_banner,
+                 text="🌐  Endereço do painel",
+                 bg="#0f3a5c", fg="#7dd3fc", font=(FONT, 11, "bold")).pack(anchor="w")
+        tk.Label(url_banner,
+                 text="A URL mais importante: é por ela que você vai acessar todo dia. Escolha um nome curto e fácil de lembrar.",
+                 bg="#0f3a5c", fg="#bae6fd", font=(FONT, 9),
+                 wraplength=320, justify="left").pack(anchor="w", pady=(4, 0))
+
+        vp, _, _ = self._field(col_url, "VERCEL_PROJECT_NAME", "Nome do painel",
+                                hint="Vai virar:  https://<nome>.vercel.app",
+                                validate_fn=_val_proj_name)
+
+        _avail_lbl_ref = [None]
+        _avail_lbl_ref[0] = tk.Label(col_url, text="", bg=BG, fg=DIM,
+                                     font=(FONT, 8), anchor="w", justify="left",
+                                     wraplength=360)
+        _avail_lbl_ref[0].pack(anchor="w", pady=(2, 0))
+
+        def _update_avail_status():
+            lbl = _avail_lbl_ref[0]
+            if not lbl:
+                return
+            name = self._var("VERCEL_PROJECT_NAME").get().strip().lower()
+            fmt_ok, _ = _val_proj_name(name)
+            if not fmt_ok:
+                lbl.config(text="", fg=DIM)
+                return
+            if _avail["name_checked"] != name:
+                lbl.config(text="⏳  verificando se está disponível…", fg=DIM)
+                return
+            s = _avail["state"]
+            if s == "free":
+                lbl.config(text="✓  Disponível — será criado no deploy", fg=GREEN)
+            elif s == "owned":
+                lbl.config(text="✓  Já existe na sua conta — será reutilizado", fg=GREEN)
+            elif s == "taken":
+                lbl.config(text="✗  Já em uso em outra conta — escolha outro nome", fg=RED)
+            elif s == "no_token":
+                lbl.config(text="⚠  Token Vercel não disponível — check pulado", fg=DIM)
+            else:
+                lbl.config(text="⚠  Não foi possível verificar agora", fg=DIM)
+
+        def _do_avail_check():
+            _avail["after_id"] = None
+            name = self._var("VERCEL_PROJECT_NAME").get().strip().lower()
+            fmt_ok, _ = _val_proj_name(name)
+            if not fmt_ok:
+                return
+            if _avail["name_checked"] == name and _avail["state"] is not None:
+                return
+            tok = _find_vercel_token_global()
+            if not tok:
+                _avail["state"], _avail["name_checked"] = "no_token", name
+                self.after(0, _update_avail_status)
+                return
+            def _worker(_n=name, _t=tok):
+                import urllib.request, urllib.error, ssl
+                _url = f"https://api.vercel.com/v9/projects/{_n}"
+                _req = urllib.request.Request(_url)
+                _req.add_header("Authorization", f"Bearer {_t}")
+                try:
+                    try:
+                        with urllib.request.urlopen(_req, timeout=8) as _r:
+                            _r.read()
+                        _avail["state"] = "owned"
+                    except urllib.error.URLError as _se:
+                        if "CERTIFICATE_VERIFY_FAILED" in str(_se):
+                            _ctx = ssl._create_unverified_context()
+                            with urllib.request.urlopen(_req, timeout=8, context=_ctx) as _r:
+                                _r.read()
+                            _avail["state"] = "owned"
+                        else:
+                            raise
+                except urllib.error.HTTPError as _he:
+                    if _he.code == 404:
+                        _avail["state"] = "free"
+                    elif _he.code == 403:
+                        # 403 = nome existe em outra conta (sem permissao para ver)
+                        _avail["state"] = "taken"
+                    else:
+                        _avail["state"] = "error"
+                except Exception:
+                    _avail["state"] = "error"
+                _avail["name_checked"] = _n
+                self.after(0, _refresh_nb)
+            threading.Thread(target=_worker, daemon=True).start()
+
+        def _schedule_avail_check(*_):
+            if _avail["after_id"]:
+                self.after_cancel(_avail["after_id"])
+            _avail["state"] = None
+            _avail["name_checked"] = None
+            _update_avail_status()
+            _avail["after_id"] = self.after(700, _do_avail_check)
+
+        vp.trace_add("write", _refresh_nb)
+        vp.trace_add("write", _schedule_avail_check)
+        # Dispara check inicial pro default pre-populado
+        if vp.get().strip():
+            _schedule_avail_check()
+
+        # ── Card Senha ──
+        pw_banner = tk.Frame(col_pw, bg=PANEL, pady=10, padx=14)
+        pw_banner.pack(fill="x")
+        tk.Label(pw_banner,
+                 text="🔐  Senha de acesso",
+                 bg=PANEL, fg=TEXT, font=(FONT, 11, "bold")).pack(anchor="w")
+        tk.Label(pw_banner,
+                 text="Guarde em local seguro — não há recuperação automática. Você vai precisar quando acessar o painel.",
+                 bg=PANEL, fg=DIM, font=(FONT, 9),
+                 wraplength=320, justify="left").pack(anchor="w", pady=(4, 0))
 
         # Generate button
         gen_btn = [None]
@@ -2049,13 +2235,13 @@ class Wizard(tk.Tk):
             self.clipboard_clear()
             self.clipboard_append(pw)
             if gen_btn[0]:
-                gen_btn[0].config(text="✓  Copiada para a área de transferência!", fg=GREEN, bg=PANEL2)
+                gen_btn[0].config(text="✓  Copiada!", fg=GREEN, bg=PANEL2)
                 self.after(3000, lambda: gen_btn[0].config(
                     text="⚡  Gerar senha segura e copiar", fg="white", bg=PANEL2))
             _refresh_nb()
 
-        btn_row = tk.Frame(body, bg=BG)
-        btn_row.pack(anchor="w", pady=(10, 4))
+        btn_row = tk.Frame(col_pw, bg=BG)
+        btn_row.pack(anchor="w", pady=(8, 2))
         gb = tk.Button(btn_row, text="⚡  Gerar senha segura e copiar",
                        command=_gen_pw,
                        bg=PANEL2, fg="white", relief="flat",
@@ -2071,10 +2257,10 @@ class Wizard(tk.Tk):
                 return False, "✗  As senhas não conferem"
             return False, ""
 
-        v1, _, _ = self._field(body, "DASHBOARD_PASSWORD", "Senha de acesso",
-                                hint="Mínimo 6 caracteres — recomendamos usar o botão acima",
+        v1, _, _ = self._field(col_pw, "DASHBOARD_PASSWORD", "Senha",
+                                hint="Mínimo 6 caracteres",
                                 secret=True, validate_fn=_val_pw)
-        v2, _, _ = self._field(body, "DASHBOARD_PASSWORD2", "Confirmar senha",
+        v2, _, _ = self._field(col_pw, "DASHBOARD_PASSWORD2", "Confirmar senha",
                                 hint="",
                                 secret=True, validate_fn=_val_match)
         v1.trace_add("write", _refresh_nb)
@@ -2127,6 +2313,7 @@ class Wizard(tk.Tk):
                 ("Bot",     lambda: self._var("BOT_APP").get() or "(vazio)"),
             ]),
             ("✅  Vercel", lambda: self._show(lambda: self._page_vercel_password(return_to_review=True)), [
+                ("Endereço",        lambda: f"https://{self._var('VERCEL_PROJECT_NAME').get()}.vercel.app" if self._var('VERCEL_PROJECT_NAME').get() else "(vazio)"),
                 ("Senha do painel", lambda: _mask(self._var("DASHBOARD_PASSWORD").get())),
             ]),
         ]
@@ -2571,15 +2758,57 @@ class Wizard(tk.Tk):
             # e o flag --token exige uma Personal Access Token (PAT). O CLI le auth.json automaticamente.
             _vcmd = [_vercel_bin, "--prod", "--yes"]
 
-            # 1ª etapa: deploy inicial para criar/linkar o projeto no Vercel
-            _dlog("  [DBG] 1º deploy — criando projeto no Vercel…")
+            # Pre-cria o projeto Vercel com o nome escolhido pelo usuario (via REST API),
+            # depois escreve .vercel/project.json — assim o `vercel --prod` ja sabe pra qual
+            # projeto deployar, sem usar o nome do diretorio ("dashboard") como default.
+            _proj_json = os.path.join(DASHBOARD_DIR, ".vercel", "project.json")
+            project_id = None
+            _custom_name = v.get("VERCEL_PROJECT_NAME", "").strip().lower()
+            if _custom_name and vercel_token:
+                # Remove project.json antigo se existir (pode estar linkado em projeto anterior)
+                try:
+                    if os.path.exists(_proj_json):
+                        os.remove(_proj_json)
+                        _dlog("  [DBG] .vercel/project.json antigo removido (relink)")
+                except Exception:
+                    pass
+                _dlog(f"  [DBG] criando/buscando projeto Vercel '{_custom_name}'…")
+                try:
+                    _purl = "https://api.vercel.com/v9/projects"
+                    _pbody = json.dumps({"name": _custom_name, "framework": "nextjs"}).encode()
+                    _preq = urllib.request.Request(_purl, data=_pbody, method="POST")
+                    _preq.add_header("Authorization", f"Bearer {vercel_token}")
+                    _preq.add_header("Content-Type", "application/json")
+                    try:
+                        with urllib.request.urlopen(_preq, timeout=15) as _pr:
+                            _pdata = json.loads(_pr.read())
+                    except urllib.error.HTTPError as _phe:
+                        if _phe.code == 409:
+                            # Nome ja existe no team — busca o existente
+                            _gurl = f"https://api.vercel.com/v9/projects/{_custom_name}"
+                            _greq = urllib.request.Request(_gurl)
+                            _greq.add_header("Authorization", f"Bearer {vercel_token}")
+                            with urllib.request.urlopen(_greq, timeout=15) as _gr:
+                                _pdata = json.loads(_gr.read())
+                            _dlog(f"  [DBG] projeto '{_custom_name}' ja existia — reaproveitando")
+                        else:
+                            raise
+                    project_id = _pdata.get("id")
+                    _org_id   = _pdata.get("accountId")
+                    os.makedirs(os.path.join(DASHBOARD_DIR, ".vercel"), exist_ok=True)
+                    with open(_proj_json, "w") as _f:
+                        json.dump({"projectId": project_id, "orgId": _org_id}, _f)
+                    _dlog(f"  [DBG] projeto linkado: id={project_id}")
+                except Exception as _e:
+                    _dlog(f"  [DBG] falha ao criar projeto via API: {_e} — CLI vai criar com nome do diretorio", "err")
+
+            # 1ª etapa: deploy inicial — agora ja linkado se VERCEL_PROJECT_NAME foi setado
+            _dlog("  [DBG] 1º deploy — Vercel…")
             ok1, out1 = _run(_vcmd, cwd=DASHBOARD_DIR, timeout=300)
             _dlog(f"  [DBG] 1º deploy ok={ok1}")
 
-            # Ler projectId do .vercel/project.json criado pelo deploy
-            _proj_json = os.path.join(DASHBOARD_DIR, ".vercel", "project.json")
-            project_id = None
-            if os.path.exists(_proj_json):
+            # Re-le projectId do .vercel/project.json (caso o pre-create tenha falhado e o CLI tenha criado)
+            if not project_id and os.path.exists(_proj_json):
                 try:
                     with open(_proj_json) as _f:
                         _pdata = json.load(_f)
@@ -2587,7 +2816,7 @@ class Wizard(tk.Tk):
                     _dlog(f"  [DBG] projectId={project_id}")
                 except Exception as _e:
                     _dlog(f"  [DBG] erro ao ler project.json: {_e}")
-            else:
+            elif not project_id:
                 _dlog("  [DBG] .vercel/project.json NAO encontrado")
 
             # Setar env vars via REST API (sem CLI, sem travamento)
