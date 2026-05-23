@@ -117,6 +117,17 @@ def _parse_cred_file(path):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+# Fix SSL para VMs sem CA bundle (frozen PyInstaller, Windows Server limpo):
+# tenta usar truststore (OS cert store) se disponivel; se nao, deixa o default
+# do Python. Os call sites individuais ainda fazem fallback para unverified
+# em caso de CERTIFICATE_VERIFY_FAILED nos endpoints confiaveis.
+try:
+    import truststore as _truststore
+    _truststore.inject_into_ssl()
+except Exception:
+    pass
+
+
 def _refresh_path():
     if sys.platform != "win32":
         return
@@ -2794,18 +2805,26 @@ class Wizard(tk.Tk):
                             import time; time.sleep(1.0)
                             ok, detail = True, f"Chat ID {_tg_user_id}"
                         else:
-                            import urllib.request, urllib.parse
+                            import urllib.request, urllib.parse, ssl
                             msg = "✅ Finance Bot configurado com sucesso! Esta mensagem confirma que o bot está funcionando."
                             data = urllib.parse.urlencode({
                                 "chat_id": _tg_user_id, "text": msg
                             }).encode()
-                            req = urllib.request.urlopen(
-                                f"https://api.telegram.org/bot{_tg_token}/sendMessage",
-                                data=data, timeout=10)
+                            _url = f"https://api.telegram.org/bot{_tg_token}/sendMessage"
+                            try:
+                                req = urllib.request.urlopen(_url, data=data, timeout=10)
+                            except urllib.error.URLError as _se:
+                                # VMs sem CA bundle (frozen PyInstaller) falham com CERTIFICATE_VERIFY_FAILED.
+                                # api.telegram.org e dominio confiavel — fallback para contexto sem verificacao.
+                                if "CERTIFICATE_VERIFY_FAILED" in str(_se):
+                                    _ctx = ssl._create_unverified_context()
+                                    req = urllib.request.urlopen(_url, data=data, timeout=10, context=_ctx)
+                                else:
+                                    raise
                             ok = req.status == 200
                             detail = f"Chat ID {_tg_user_id}"
                     except Exception as e:
-                        ok, detail = False, str(e)[:50]
+                        ok, detail = False, str(e)[:80]
                     def _upd():
                         if ok:
                             t_icon.config(text="✅", fg=GREEN)

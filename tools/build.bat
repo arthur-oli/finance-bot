@@ -16,7 +16,7 @@ where python >nul 2>&1 || (
 )
 
 echo Instalando dependencias de build...
-pip install pyinstaller pillow --quiet
+pip install pyinstaller pillow truststore --quiet
 
 echo Removendo pathlib legado ^(incompativel com PyInstaller^)...
 pip uninstall pathlib -y >nul 2>&1
