@@ -778,41 +778,27 @@ class Wizard(tk.Tk):
         body = tk.Frame(p, bg=BG)
         body.pack(fill="both", expand=True, padx=32, pady=(12, 0))
 
-        # Log bufferizado — popup só abre quando o usuário pede
-        _log_buf = []   # lista de (text, tag)
-        _popup   = [None]
+        # Log inline — caixa colapsavel (mesmo padrao da tela de deploy)
+        _log_buf = []   # lista de (text, tag) — mantida para retry/debug
+        log_visible = [False]
+        log_wrap = tk.Frame(body, bg=BG)
+        log_box = scrolledtext.ScrolledText(log_wrap, bg=PANEL, fg=MUTED,
+                                            font=("Consolas", 9), relief="flat",
+                                            state="disabled", height=8)
+        log_box.pack(fill="x")
+        log_box.tag_config("ok",  foreground=GREEN)
+        log_box.tag_config("err", foreground=RED)
 
         def _log(text, tag=None):
             _log_buf.append((text, tag))
-            if _popup[0] and _popup[0].winfo_exists():
-                box = _popup[0]._log_box
-                box.config(state="normal")
-                box.insert("end", text + "\n", tag or "")
-                box.see("end")
-                box.config(state="disabled")
-
-        def _open_logs():
-            if _popup[0] and _popup[0].winfo_exists():
-                _popup[0].lift()
-                return
-            win = tk.Toplevel(self)
-            win.title("Detalhes da instalação")
-            win.geometry("560x300")
-            win.configure(bg=BG)
-            win.resizable(True, True)
-            box = scrolledtext.ScrolledText(win, bg=PANEL, fg=MUTED,
-                                            font=("Consolas", 9), relief="flat",
-                                            state="disabled")
-            box.pack(fill="both", expand=True, padx=10, pady=10)
-            box.tag_config("ok",  foreground=GREEN)
-            box.tag_config("err", foreground=RED)
-            box.config(state="normal")
-            for t, tg in _log_buf:
-                box.insert("end", t + "\n", tg or "")
-            box.see("end")
-            box.config(state="disabled")
-            win._log_box = box
-            _popup[0] = win
+            try:
+                if log_box.winfo_exists():
+                    log_box.config(state="normal")
+                    log_box.insert("end", text + "\n", tag or "")
+                    log_box.see("end")
+                    log_box.config(state="disabled")
+            except tk.TclError:
+                pass
 
         items           = []
         all_do_fns      = []
@@ -1048,13 +1034,27 @@ class Wizard(tk.Tk):
         _make_row("Git",      "Faz o download e as atualizações do bot",
                   lambda: _check(["git", "--version"]), _inst_git, "Instalar agora")
 
-        # ── Botão de logs (abre popup sob demanda) ────────────────────────────
-        tk.Button(body, text="▸  Ver logs de instalação",
-                  command=_open_logs,
-                  bg=BG, fg=DIM, relief="flat",
-                  font=(FONT, 9), cursor="hand2", anchor="w",
-                  activeforeground=MUTED, activebackground=BG,
-                  ).pack(anchor="w", pady=(10, 0))
+        # ── Botão de logs (toggle inline) ─────────────────────────────────────
+        toggle_btn_ref = [None]
+
+        def _toggle_log():
+            log_visible[0] = not log_visible[0]
+            if log_visible[0]:
+                if install_all_ref[0]:
+                    log_wrap.pack(fill="x", pady=(4, 0), before=install_all_ref[0])
+                else:
+                    log_wrap.pack(fill="x", pady=(4, 0))
+                toggle_btn_ref[0].config(text="▾  Ocultar logs de instalação")
+            else:
+                log_wrap.pack_forget()
+                toggle_btn_ref[0].config(text="▸  Ver logs de instalação")
+
+        toggle_btn_ref[0] = tk.Button(body, text="▸  Ver logs de instalação",
+                                      command=_toggle_log,
+                                      bg=BG, fg=DIM, relief="flat",
+                                      font=(FONT, 9), cursor="hand2", anchor="w",
+                                      activeforeground=MUTED, activebackground=BG)
+        toggle_btn_ref[0].pack(anchor="w", pady=(10, 0))
 
         # ── Botão "Instalar tudo" ──────────────────────────────────────────────
         # install_all_ref é definido cedo (no topo), _mark_verified já o conhece.
