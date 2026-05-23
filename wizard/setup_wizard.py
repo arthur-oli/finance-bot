@@ -2297,24 +2297,35 @@ class Wizard(tk.Tk):
             # Ler token de auth do Vercel CLI ANTES do deploy (evita travamento por seleção de scope)
             import glob as _glob
 
-            def _find_vercel_token():
+            # Diretório de config controlado — usado no fallback de login
+            _vercel_cfg = os.path.join(ROOT, ".vercel-auth")
+            os.makedirs(_vercel_cfg, exist_ok=True)
+
+            def _find_vercel_token(extra_dirs=None):
                 _sys_drive = os.environ.get("SystemDrive", "C:")
+                _local  = os.environ.get("LOCALAPPDATA", "")
+                _roam   = os.environ.get("APPDATA", "")
+                _home   = os.environ.get("USERPROFILE", "")
                 _candidates = []
-                # Paths conhecidos via variáveis de ambiente
-                for _env in ("LOCALAPPDATA", "APPDATA", "USERPROFILE"):
-                    _val = os.environ.get(_env, "")
-                    if _val:
-                        _candidates += [
-                            os.path.join(_val, "com.vercel.cli", "auth.json"),
-                            os.path.join(_val, "AppData", "Local", "com.vercel.cli", "auth.json"),
-                            os.path.join(_val, "AppData", "Roaming", "com.vercel.cli", "auth.json"),
-                            os.path.join(_val, ".vercel", "auth.json"),
-                        ]
-                # Busca ampla em todos os perfis de usuário do sistema
+                # Paths corretos por variável (sem duplicação de segmentos)
+                if _local:
+                    _candidates.append(os.path.join(_local, "com.vercel.cli", "auth.json"))
+                if _roam:
+                    # XDG_DATA_HOME no Windows resolve para %APPDATA%\xdg.data (CLI atual)
+                    _candidates.append(os.path.join(_roam, "xdg.data", "com.vercel.cli", "auth.json"))
+                    _candidates.append(os.path.join(_roam, "com.vercel.cli", "auth.json"))
+                if _home:
+                    _candidates.append(os.path.join(_home, ".vercel", "auth.json"))
+                    _candidates.append(os.path.join(_home, ".local", "share", "com.vercel.cli", "auth.json"))
+                # Dirs extras (ex.: _vercel_cfg após auto-login com --global-config)
+                for _d in (extra_dirs or []):
+                    _candidates.append(os.path.join(_d, "auth.json"))
+                    _candidates.append(os.path.join(_d, "com.vercel.cli", "auth.json"))
+                # Busca ampla em todos os perfis do sistema
+                _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\AppData\\Roaming\\xdg.data\\com.vercel.cli\\auth.json")
                 _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\AppData\\Local\\com.vercel.cli\\auth.json")
                 _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\AppData\\Roaming\\com.vercel.cli\\auth.json")
                 _candidates += _glob.glob(f"{_sys_drive}\\Users\\*\\.vercel\\auth.json")
-                # Deduplicar preservando ordem
                 seen = set()
                 for _tp in _candidates:
                     _tp = os.path.normpath(_tp)
@@ -2325,7 +2336,7 @@ class Wizard(tk.Tk):
                     _dlog(f"  [DBG] testando: {_tp} — {'EXISTE' if _exists else 'nao existe'}")
                     if _exists:
                         try:
-                            with open(_tp) as _f:
+                            with open(_tp, encoding="utf-8") as _f:
                                 _tok = json.load(_f).get("token")
                             if _tok:
                                 _dlog(f"  [DBG] token Vercel lido de {_tp}")
@@ -2337,14 +2348,16 @@ class Wizard(tk.Tk):
             vercel_token = _find_vercel_token()
             if not vercel_token:
                 _dlog("  ⚠️  Login do Vercel necessário — uma janela vai abrir.", "err")
-                _dlog("  → Faça login com GitHub no navegador e aguarde a janela fechar sozinha.")
+                _dlog("  → Faça login no navegador e aguarde a janela fechar sozinha.")
                 _lproc = subprocess.Popen(
-                    ["cmd.exe", "/c", "(echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.) | npx --yes vercel login"],
+                    ["cmd.exe", "/c",
+                     f"(echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.)"
+                     f" | npx --yes vercel login --global-config \"{_vercel_cfg}\""],
                     env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
                 _lproc.wait()
-                vercel_token = _find_vercel_token()
+                vercel_token = _find_vercel_token(extra_dirs=[_vercel_cfg])
                 if not vercel_token:
                     _dlog("  [DBG] token ainda não encontrado após login", "err")
 
