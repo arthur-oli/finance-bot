@@ -168,9 +168,33 @@ def _popen(args, cwd=None, env=None):
 
 def _resolve_cmd(name):
     """Resolve um nome de comando para o caminho real, respeitando PATHEXT.
-    No Windows, subprocess nao acha .cmd/.bat sem isso. Faz refresh do PATH antes de buscar."""
+    No Windows, subprocess nao acha .cmd/.bat sem isso. Faz refresh do PATH antes de buscar
+    e tenta locais conhecidos do Node.js quando o PATH ainda nao foi atualizado pelo OS."""
     _refresh_path()
-    return shutil.which(name) or shutil.which(name + ".cmd") or name
+    # 1. Busca padrao via PATHEXT (acha .cmd, .exe, .bat)
+    p = shutil.which(name)
+    if p:
+        return p
+    # 2. Fallback para locais conhecidos de instalacao do Node.js no Windows
+    if sys.platform == "win32" and name in ("npm", "vercel", "npx", "node"):
+        _node_dirs = [
+            r"C:\Program Files\nodejs",
+            r"C:\Program Files (x86)\nodejs",
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "nodejs"),
+            os.path.join(os.environ.get("APPDATA", ""), "npm"),  # npm global bin
+            os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "nodejs"),
+        ]
+        for _d in _node_dirs:
+            if not _d:
+                continue
+            for _ext in (".cmd", ".exe", ".bat", ""):
+                _candidate = os.path.join(_d, f"{name}{_ext}")
+                if os.path.isfile(_candidate):
+                    # Adiciona dir ao PATH para chamadas futuras
+                    if _d not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = _d + ";" + os.environ.get("PATH", "")
+                    return _candidate
+    return name
 
 
 def _ensure_vercel_cli(log=None):
