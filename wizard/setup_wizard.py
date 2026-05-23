@@ -695,6 +695,7 @@ class Wizard(tk.Tk):
         for icon, line in [
             ("📋", "Você vai criar 5 contas gratuitas, uma por vez"),
             ("⚡", "O assistente faz logins e publicações automaticamente"),
+            ("🔑", "Dica: use a mesma conta Google ou GitHub em todos os cadastros — fica bem mais rápido"),
             ("⏱", "Tempo estimado: 15–20 minutos"),
         ]:
             row = tk.Frame(info, bg=PANEL)
@@ -1756,15 +1757,24 @@ class Wizard(tk.Tk):
         col1.pack(side="left", fill="x", expand=True)
         tk.Label(col1, text="1.  Crie sua conta gratuita no Fly.io", bg=PANEL, fg=MUTED,
                  font=(FONT, 10, "bold")).pack(anchor="w")
-        tk.Label(col1,
-                 text="⚠️  O Fly.io pede cartão de crédito para confirmar que você é uma pessoa real.\n"
-                      "Não há cobrança no plano gratuito — usamos 2 máquinas (limite: 3).\n"
-                      "💡  Prefere mais segurança? Crie um cartão virtual com limite de R$ 1 no seu banco.",
-                 bg=PANEL, fg=DIM, font=(FONT, 9), justify="left", wraplength=460).pack(anchor="w", pady=(4, 0))
         tk.Button(row1, text="Abrir fly.io  →",
                   command=lambda: webbrowser.open("https://fly.io/app/sign-up"),
                   bg=BLUE, fg="white", relief="flat",
                   font=(FONT, 9, "bold"), padx=10, pady=6, cursor="hand2").pack(side="right")
+
+        # Aviso de cartao — destacado (sem ele a conta nao funciona)
+        warn = tk.Frame(zone1, bg="#3f2a13", padx=14, pady=10)
+        warn.pack(fill="x", pady=(10, 2))
+        tk.Label(warn,
+                 text="⚠️  É OBRIGATÓRIO cadastrar um cartão de crédito",
+                 bg="#3f2a13", fg=YELLOW, font=(FONT, 10, "bold"),
+                 justify="left").pack(anchor="w")
+        tk.Label(warn,
+                 text="Sem cartão, o Fly.io não libera nem o plano gratuito — o deploy do bot vai falhar.\n"
+                      "Não há cobrança: usamos só 2 máquinas (limite gratuito é 3).\n"
+                      "💡  Para mais segurança, crie um cartão virtual com limite de R$ 1 no app do seu banco.",
+                 bg="#3f2a13", fg="#fde68a", font=(FONT, 9), justify="left",
+                 wraplength=620).pack(anchor="w", pady=(4, 0))
 
         # Zone 2 — login
         tk.Label(body, text="2.  Conectar o assistente à sua conta",
@@ -1854,7 +1864,7 @@ class Wizard(tk.Tk):
         col1.pack(side="left", fill="x", expand=True)
         tk.Label(col1, text="1.  Crie sua conta gratuita no Vercel", bg=PANEL, fg=MUTED,
                  font=(FONT, 10, "bold")).pack(anchor="w")
-        tk.Label(col1, text="Recomendamos entrar com GitHub. Escolha o plano Hobby (gratuito).",
+        tk.Label(col1, text="Escolha o plano Hobby (gratuito).",
                  bg=PANEL, fg=DIM, font=(FONT, 9)).pack(anchor="w", pady=(4, 0))
         tk.Button(row1, text="Abrir vercel.com  →",
                   command=lambda: webbrowser.open("https://vercel.com/signup"),
