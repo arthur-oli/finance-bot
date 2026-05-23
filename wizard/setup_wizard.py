@@ -2336,17 +2336,18 @@ class Wizard(tk.Tk):
 
             vercel_token = _find_vercel_token()
             if not vercel_token:
-                _dlog("  ⚠️  Login do Vercel necessário — uma janela vai abrir.", "err")
-                _dlog("  → Faça login no navegador e aguarde a janela fechar sozinha.")
+                _dlog("  ⚠️  Login do Vercel necessário — uma janela preta vai abrir.", "err")
+                _dlog("  → Use as setas (↑↓) para escolher o método de login e pressione Enter.")
+                _dlog("  → Após autenticar no navegador, a janela fechará sozinha.")
                 _lproc = subprocess.Popen(
-                    ["cmd.exe", "/c", "npx --yes vercel login --github"],
+                    ["cmd.exe", "/c", "npx --yes vercel login"],
                     env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
                 _lproc.wait()
                 vercel_token = _find_vercel_token()
                 if not vercel_token:
-                    _dlog("  [DBG] token ainda nao encontrado após login", "err")
+                    _dlog("  [DBG] token ainda não encontrado após login", "err")
 
             _vcmd = ["npx", "--yes", "vercel", "--prod", "--yes"]
             if vercel_token:
