@@ -3248,7 +3248,8 @@ class Wizard(tk.Tk):
             ("2", "Mande uma mensagem como:  gastei 50 reais no mercado."),
             ("3", "Acesse o painel web e entre com a senha que você definiu."),
             ("4", "Cadastre seus cartões no painel antes de usar."),
-            ("5", "Para atualizar no futuro, execute o  FinanceBotUpdate.exe."),
+            ("5", "Explore as configurações do painel — categorias, metas, assinaturas e cartões compartilhados ficam em  Configurações."),
+            ("6", "Para atualizar no futuro, execute o  FinanceBotUpdate.exe."),
         ]:
             row = tk.Frame(body, bg=BG)
             row.pack(anchor="w", pady=1)
