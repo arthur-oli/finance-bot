@@ -2604,6 +2604,32 @@ class Wizard(tk.Tk):
             db_password = v.get("SUPABASE_DB_PASSWORD", "").strip()
             db_url = f"postgresql://postgres:{db_password}@db.{proj_ref}.supabase.co:5432/postgres"
             _dlog(f"  [DBG] proj_ref={proj_ref!r}  db_url_prefix=postgresql://postgres:***@db.{proj_ref}…")
+
+            # Aplica o schema diretamente via psycopg2 — evita o bug do apply_schema()
+            # do backend que engolia exceptions e deixava o backend subir sem tabelas.
+            if schema_copied:
+                _dlog("  [DBG] aplicando schema.sql no Supabase…")
+                try:
+                    import psycopg2 as _pg
+                    with open(SCHEMA_SQL, encoding="utf-8") as _sf:
+                        _schema_sql = _sf.read()
+                    _conn = _pg.connect(db_url, connect_timeout=15)
+                    _conn.autocommit = True
+                    with _conn.cursor() as _cur:
+                        _cur.execute(_schema_sql)
+                    _conn.close()
+                    _dlog("  [DBG] schema aplicado com sucesso.")
+                except Exception as _se:
+                    _dlog(f"  ERRO ao aplicar schema: {_se}", "err")
+                    _dlog("  Verifique se a senha do Supabase está correta e se o projeto está ativo.", "err")
+                    _dlog("  Você pode aplicar manualmente colando schema.sql em:", "err")
+                    _dlog(f"  https://supabase.com/dashboard/project/{proj_ref}/sql/new", "err")
+                    _set_step(0, "error", out=f"Schema apply falhou: {_se}")
+                    return
+            else:
+                _dlog("  ERRO: schema.sql nao encontrado no diretorio do projeto.", "err")
+                _set_step(0, "error", out="schema.sql ausente")
+                return
             _dlog("  [DBG] rodando fly secrets set (backend)…")
             ok, out = _run([
                 "fly", "secrets", "set",

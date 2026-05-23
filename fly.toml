@@ -11,7 +11,7 @@ primary_region = "gru"
 
 # Restart policy: tenta sempre, sem limite. Bot tem sleep no startup que evita
 # burst de restarts em erro de config (token invalido, etc).
-[restart]
+[[restart]]
   policy = "always"
   retries = 0
 

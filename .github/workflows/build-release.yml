@@ -22,7 +22,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          pip install pyinstaller pillow truststore --quiet
+          pip install pyinstaller pillow truststore psycopg2-binary --quiet
           pip uninstall pathlib -y
 
       - name: Generate icon
