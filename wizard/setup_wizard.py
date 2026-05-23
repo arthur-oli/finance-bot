@@ -821,31 +821,35 @@ class Wizard(tk.Tk):
             pending = [len(items)]
             lock    = threading.Lock()
 
-            def _check_one(icon_lbl, status_lbl, act_btn, chk_fn):
+            def _check_one(icon_lbl, status_lbl, act_btn, chk_fn, time_lbl):
                 ok = chk_fn()
                 if ok:
                     _mark_verified(chk_fn)
                 with lock:
                     pending[0] -= 1
                     finished = pending[0] == 0
-                self.after(0, lambda i=icon_lbl, sl=status_lbl, b=act_btn, o=ok: (
-                    i.config(text="✅" if o else "❌", fg=GREEN if o else RED),
+                def _apply(i=icon_lbl, sl=status_lbl, b=act_btn, tm=time_lbl, o=ok):
+                    i.config(text="✅" if o else "❌", fg=GREEN if o else RED)
                     sl.config(text="Instalado" if o else "Pendente",
-                              fg=GREEN if o else MUTED),
+                              fg=GREEN if o else MUTED)
                     b.config(state="disabled" if o else "normal",
-                             bg=DIM if o else BLUE, fg="white"),
-                ))
+                             bg=DIM if o else BLUE, fg="white")
+                    if o and tm is not None:
+                        tm.pack_forget()
+                self.after(0, _apply)
                 if finished and on_done:
                     self.after(0, on_done)
 
-            for icon_lbl, status_lbl, act_btn, chk_fn in items:
+            for entry in items:
+                icon_lbl, status_lbl, act_btn, chk_fn = entry[0], entry[1], entry[2], entry[3]
+                time_lbl = entry[4] if len(entry) > 4 else None
                 threading.Thread(target=_check_one,
-                                 args=(icon_lbl, status_lbl, act_btn, chk_fn),
+                                 args=(icon_lbl, status_lbl, act_btn, chk_fn, time_lbl),
                                  daemon=True).start()
 
         SPIN_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 
-        def _make_row(name, note, chk_fn, act_fn, act_label):
+        def _make_row(name, note, chk_fn, act_fn, act_label, est=""):
             row = tk.Frame(body, bg=PANEL, pady=8, padx=16)
             row.pack(fill="x", pady=3)
 
@@ -862,6 +866,9 @@ class Wizard(tk.Tk):
             name_lbl.pack(anchor="w")
             st = tk.Label(txt, text="verificando…", bg=PANEL, fg=DIM, font=(FONT, 9))
             st.pack(anchor="w")
+            tm = tk.Label(txt, text=est, bg=PANEL, fg=DIM, font=(FONT, 8))
+            if est:
+                tm.pack(anchor="w")
 
             # Spinner state (um por row)
             spin = {"running": False, "id": None, "frame": 0}
@@ -899,15 +906,17 @@ class Wizard(tk.Tk):
                     ok = my_chk()
                     if ok:
                         _mark_verified(my_chk)
-                    self.after(0, lambda o=ok: (
-                        _stop_spin(),
-                        icon.config(text="✅" if o else "❌", fg=GREEN if o else RED),
+                    def _apply(o=ok):
+                        _stop_spin()
+                        icon.config(text="✅" if o else "❌", fg=GREEN if o else RED)
                         st.config(text="Instalado" if o else "Erro — tente novamente",
-                                  fg=GREEN if o else RED),
+                                  fg=GREEN if o else RED)
                         btn_ref[0].config(state="disabled" if o else "normal",
                                           bg=DIM if o else BLUE, fg="white",
-                                          text=act_label),
-                    ))
+                                          text=act_label)
+                        if o and est:
+                            tm.pack_forget()
+                    self.after(0, _apply)
 
                 threading.Thread(target=_run, daemon=True).start()
 
@@ -917,7 +926,7 @@ class Wizard(tk.Tk):
                             state="disabled", disabledforeground="white")
             btn.pack(side="right")
             btn_ref[0] = btn
-            items.append((icon, st, btn, chk_fn))
+            items.append((icon, st, btn, chk_fn, tm if est else None))
             all_do_fns.append(_do)
 
         def _winget_run(pkg_id, log_fn):
@@ -1028,11 +1037,11 @@ class Wizard(tk.Tk):
             return False
 
         _make_row("Fly CLI",  "Publica o backend e o bot",
-                  _chk_fly, _inst_fly, "Instalar agora")
+                  _chk_fly, _inst_fly, "Instalar agora", est="~1 min")
         _make_row("Node.js",  "Publica o painel web",
-                  lambda: _check(["node", "--version"]), _inst_node, "Instalar agora")
+                  lambda: _check(["node", "--version"]), _inst_node, "Instalar agora", est="~3 min")
         _make_row("Git",      "Faz o download e as atualizações do bot",
-                  lambda: _check(["git", "--version"]), _inst_git, "Instalar agora")
+                  lambda: _check(["git", "--version"]), _inst_git, "Instalar agora", est="~1 min")
 
         # ── Botão de logs (toggle inline) ─────────────────────────────────────
         toggle_btn_ref = [None]
