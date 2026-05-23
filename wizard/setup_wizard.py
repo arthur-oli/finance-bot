@@ -2336,11 +2336,10 @@ class Wizard(tk.Tk):
 
             vercel_token = _find_vercel_token()
             if not vercel_token:
-                _dlog("  ⚠️  Login do Vercel necessário — uma janela preta vai abrir.", "err")
-                _dlog("  → Use as setas (↑↓) para escolher o método de login e pressione Enter.")
-                _dlog("  → Após autenticar no navegador, a janela fechará sozinha.")
+                _dlog("  ⚠️  Login do Vercel necessário — uma janela vai abrir.", "err")
+                _dlog("  → Faça login com GitHub no navegador e aguarde a janela fechar sozinha.")
                 _lproc = subprocess.Popen(
-                    ["cmd.exe", "/c", "npx --yes vercel login"],
+                    ["cmd.exe", "/c", "npx --yes vercel login --github"],
                     env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
