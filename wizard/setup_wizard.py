@@ -2450,9 +2450,9 @@ class Wizard(tk.Tk):
 
             _vercel_bin = _resolve_cmd("vercel")
             _dlog(f"  [DBG] vercel CLI resolvido em: {_vercel_bin}")
+            # NAO passa --token: o token em auth.json e do tipo `vca_` (sessao interna do CLI)
+            # e o flag --token exige uma Personal Access Token (PAT). O CLI le auth.json automaticamente.
             _vcmd = [_vercel_bin, "--prod", "--yes"]
-            if vercel_token:
-                _vcmd += ["--token", vercel_token]
 
             # 1ª etapa: deploy inicial para criar/linkar o projeto no Vercel
             _dlog("  [DBG] 1º deploy — criando projeto no Vercel…")
