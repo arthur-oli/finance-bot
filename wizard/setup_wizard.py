@@ -1877,8 +1877,13 @@ class Wizard(tk.Tk):
 
         def _login_vercel():
             _ensure_vercel_cli()
+            # Pipe de 10 newlines no stdin: auto-pressiona Enter no menu inicial e em qualquer
+            # prompt final ("Press Enter to continue") apos o callback do navegador. Evita que
+            # o usuario tenha que voltar manualmente para o console preto.
             subprocess.Popen(
-                ["cmd.exe", "/c", "vercel login"],
+                ["cmd.exe", "/c",
+                 "(echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.)"
+                 " | vercel login"],
                 env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                 creationflags=subprocess.CREATE_NEW_CONSOLE
             ).wait()
