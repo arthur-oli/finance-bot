@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     description  TEXT NOT NULL,
     amount       NUMERIC(12,2) NOT NULL CHECK (amount > 0),
     card_id      UUID REFERENCES cards(id) ON DELETE SET NULL,
-    user         TEXT,
+    "user"       TEXT,
     created_at   TIMESTAMPTZ DEFAULT now()
 );
 
