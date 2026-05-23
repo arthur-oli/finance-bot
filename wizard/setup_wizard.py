@@ -3,6 +3,7 @@
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog
 import subprocess
+import shutil
 import threading
 import secrets
 import webbrowser
@@ -165,26 +166,39 @@ def _popen(args, cwd=None, env=None):
     )
 
 
+def _resolve_cmd(name):
+    """Resolve um nome de comando para o caminho real, respeitando PATHEXT.
+    No Windows, subprocess nao acha .cmd/.bat sem isso. Faz refresh do PATH antes de buscar."""
+    _refresh_path()
+    return shutil.which(name) or shutil.which(name + ".cmd") or name
+
+
 def _ensure_vercel_cli(log=None):
     """Garante que `vercel` esteja no PATH. Instala via `npm i -g vercel` se necessario.
     Evita o overhead do `npx --yes vercel` que baixa o pacote silenciosamente em cada chamada."""
     if log is None:
         log = lambda *a, **kw: None
-    if _check(["vercel", "--version"]):
+    _vercel = _resolve_cmd("vercel")
+    if _check([_vercel, "--version"]):
         return True
+    _npm = _resolve_cmd("npm")
     log("  [DBG] vercel CLI nao encontrado — instalando globalmente via npm…")
     try:
         r = subprocess.run(
-            ["npm", "i", "-g", "vercel"],
+            [_npm, "i", "-g", "vercel"],
             capture_output=True, text=True, timeout=300,
             encoding="utf-8", errors="replace", creationflags=NO_WIN,
             env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
+            shell=False,
         )
         if r.returncode == 0:
             log("  [DBG] vercel CLI instalado.")
             _refresh_path()
-            return _check(["vercel", "--version"])
+            return _check([_resolve_cmd("vercel"), "--version"])
         log(f"  [DBG] npm i -g vercel falhou (rc={r.returncode}): {(r.stdout or '') + (r.stderr or '')}", "err")
+        return False
+    except FileNotFoundError as _e:
+        log(f"  [DBG] npm nao encontrado no PATH ({_e}). Reabra o wizard apos instalar Node.", "err")
         return False
     except subprocess.TimeoutExpired:
         log("  [DBG] npm i -g vercel: timeout apos 5 min.", "err")
@@ -959,7 +973,7 @@ class Wizard(tk.Tk):
                 if v:
                     log_fn("Instalando Vercel CLI globalmente (npm i -g vercel)…")
                     if _ensure_vercel_cli(log_fn):
-                        vv = _check_output(["vercel", "--version"])
+                        vv = _check_output([_resolve_cmd("vercel"), "--version"])
                         log_fn(f"vercel {vv}" if vv else "vercel instalado.", "ok")
                         self._wlog(f"_inst_node: vercel version={vv}")
                     else:
@@ -1829,8 +1843,9 @@ class Wizard(tk.Tk):
         # Garante o vercel CLI antes do primeiro whoami (evita bloqueio do `npx --yes` baixando o pacote)
         threading.Thread(target=_ensure_vercel_cli, daemon=True).start()
 
+        # cmd.exe /c resolve `vercel.cmd` via PATHEXT — necessario porque subprocess direto so acha .exe
         self._login_card(body, "Vercel",
-                         ["vercel", "whoami"],
+                         ["cmd.exe", "/c", "vercel", "whoami"],
                          _login_vercel, _refresh_nb)
 
         tk.Label(body,
@@ -2409,7 +2424,9 @@ class Wizard(tk.Tk):
                 _set_step(2, "error", out="vercel CLI ausente")
                 return
 
-            _vcmd = ["vercel", "--prod", "--yes"]
+            _vercel_bin = _resolve_cmd("vercel")
+            _dlog(f"  [DBG] vercel CLI resolvido em: {_vercel_bin}")
+            _vcmd = [_vercel_bin, "--prod", "--yes"]
             if vercel_token:
                 _vcmd += ["--token", vercel_token]
 
