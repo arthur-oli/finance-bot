@@ -2339,7 +2339,7 @@ class Wizard(tk.Tk):
                 _dlog("  ⚠️  Login do Vercel necessário — uma janela vai abrir.", "err")
                 _dlog("  → Faça login com GitHub no navegador e aguarde a janela fechar sozinha.")
                 _lproc = subprocess.Popen(
-                    ["cmd.exe", "/c", "npx --yes vercel login --github"],
+                    ["cmd.exe", "/c", "(echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.&echo.) | npx --yes vercel login"],
                     env={**os.environ, "NO_UPDATE_NOTIFIER": "1"},
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
