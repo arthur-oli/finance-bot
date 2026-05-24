@@ -2615,6 +2615,7 @@ class Wizard(tk.Tk):
             proj_ref = v.get("SUPABASE_PROJECT_ID", "").strip()
             db_password = v.get("SUPABASE_DB_PASSWORD", "").strip()
             db_url = f"postgresql://postgres:{db_password}@db.{proj_ref}.supabase.co:5432/postgres"
+            self._info["database_url"] = db_url
             _dlog(f"  [DBG] proj_ref={proj_ref!r}  db_url_prefix=postgresql://postgres:***@db.{proj_ref}…")
 
             # Aplica o schema diretamente via psycopg2 — evita o bug do apply_schema()
@@ -2939,6 +2940,9 @@ class Wizard(tk.Tk):
                 cfg = {
                     "version":      self._info.get("version", "1.0.0"),
                     "install_path": self._info.get("install_path", ROOT),
+                    "database_url": db_url,
+                    "backend_app":  bapp,
+                    "bot_app":      botapp,
                 }
                 with open(CONFIG_JSON, "w", encoding="utf-8") as _cf:
                     json.dump(cfg, _cf, indent=2)
@@ -3022,6 +3026,7 @@ class Wizard(tk.Tk):
                 _ids = "987654321"
                 _grq = "gsk_demoKeyForTestingPurposesOnly1234567890"
                 _pw2 = "demo1234"
+                _dbu = "postgresql://postgres:demo1234@db.abcdefghij1234567890.supabase.co:5432/postgres"
             else:
                 _b   = urls.get("backend", "")
                 _d   = urls.get("dashboard", "")
@@ -3032,6 +3037,7 @@ class Wizard(tk.Tk):
                 _ids = self._var("TELEGRAM_USER_IDS").get()
                 _grq = self._var("GROQ_API_KEY").get()
                 _pw2 = _pw
+                _dbu = self._info.get("database_url", "")
             now = _dt.now()
             content = (
                 f"Finance Bot — Credenciais (geradas em {now:%d/%m/%Y %H:%M})\n"
@@ -3043,6 +3049,7 @@ class Wizard(tk.Tk):
                 f"\n"
                 f"Supabase URL:       {_sub}\n"
                 f"Supabase Project:   {_pro}\n"
+                f"Database URL:       {_dbu}\n"
                 f"Telegram Bot Token: {_tok}\n"
                 f"Telegram User IDs:  {_ids}\n"
                 f"Groq API Key:       {_grq}\n"
