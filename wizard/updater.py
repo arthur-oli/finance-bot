@@ -1,5 +1,6 @@
 """Finance Bot — Updater"""
 
+import sys
 import tkinter as tk
 from tkinter import ttk, scrolledtext, filedialog
 import json
@@ -9,9 +10,17 @@ import subprocess
 import threading
 import urllib.request
 
+from PIL import Image, ImageTk
+
 GITHUB_REPO = "arthur-oli/finance-bot"
 APPDATA_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "FinanceBot")
 CONFIG_JSON = os.path.join(APPDATA_DIR, "config.json")
+
+
+def _asset(name):
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, "assets", name)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", name)
 
 BG     = "#0f172a"
 PANEL  = "#1e293b"
@@ -115,6 +124,14 @@ class Updater(tk.Tk):
         self.configure(bg=BG)
         self._config  = {}
         self._release = {}
+        try:
+            _logo = Image.open(_asset("finance-bot-logo.png")).convert("RGBA")
+            _icon_imgs = [ImageTk.PhotoImage(_logo.resize((s, s), Image.LANCZOS))
+                          for s in (16, 32, 48, 64, 128, 256)]
+            self.iconphoto(True, *_icon_imgs)
+            self._icon_refs = _icon_imgs
+        except Exception:
+            pass
         self._center()
         self._build_ui()
         threading.Thread(target=self._check, daemon=True).start()
@@ -129,10 +146,12 @@ class Updater(tk.Tk):
         # Header
         hdr = tk.Frame(self, bg=BG, pady=20, padx=32)
         hdr.pack(fill="x")
-        c = tk.Canvas(hdr, width=48, height=48, bg=BG, highlightthickness=0)
-        c.pack(side="left", padx=(0, 14))
-        c.create_oval(2, 2, 46, 46, fill="white", outline="")
-        c.create_text(24, 24, text="$", font=(FONT, 22, "bold"), fill=BG)
+        try:
+            _pil = Image.open(_asset("finance-bot-logo.png")).convert("RGBA")
+            self._hdr_logo = ImageTk.PhotoImage(_pil.resize((48, 48), Image.LANCZOS))
+            tk.Label(hdr, image=self._hdr_logo, bg=BG).pack(side="left", padx=(0, 14))
+        except Exception:
+            pass
         col = tk.Frame(hdr, bg=BG)
         col.pack(side="left")
         tk.Label(col, text="Finance Bot", bg=BG, fg=TEXT,
@@ -170,8 +189,9 @@ class Updater(tk.Tk):
         self._import_path_lbl.pack(side="left")
         tk.Button(import_row, text="Selecionar credenciais…",
                   command=self._pick_credentials,
-                  bg=PANEL2, fg=MUTED, relief="flat",
-                  font=(FONT, 9), padx=10, pady=4, cursor="hand2").pack(side="right")
+                  bg=PANEL2, fg=TEXT, activebackground=PANEL, activeforeground=TEXT,
+                  relief="flat", font=(FONT, 9), padx=10, pady=6,
+                  cursor="hand2").pack(side="right")
 
         folder_row = tk.Frame(self._import_frame, bg=BG)
         folder_row.pack(anchor="w", padx=32, pady=(6, 0))
@@ -180,14 +200,16 @@ class Updater(tk.Tk):
         self._folder_lbl.pack(side="left")
         tk.Button(folder_row, text="Selecionar pasta do bot…",
                   command=self._pick_folder,
-                  bg=PANEL2, fg=MUTED, relief="flat",
-                  font=(FONT, 9), padx=10, pady=4, cursor="hand2").pack(side="right")
+                  bg=PANEL2, fg=TEXT, activebackground=PANEL, activeforeground=TEXT,
+                  relief="flat", font=(FONT, 9), padx=10, pady=6,
+                  cursor="hand2").pack(side="right")
 
         self._import_apply_btn = tk.Button(
             self._import_frame, text="Salvar e verificar atualizações",
             command=self._apply_import,
-            bg=BLUE, fg="white", activebackground=BLUE2, activeforeground="white",
-            relief="flat", font=(FONT, 10, "bold"), padx=16, pady=7,
+            bg=PANEL2, fg=TEXT, activebackground=BLUE, activeforeground="white",
+            disabledforeground=DIM,
+            relief="flat", font=(FONT, 10, "bold"), padx=16, pady=9,
             cursor="hand2", state="disabled")
         self._import_apply_btn.pack(anchor="w", padx=32, pady=(8, 0))
 
@@ -231,7 +253,8 @@ class Updater(tk.Tk):
         self._action_btn = tk.Button(
             footer, text="Atualizar agora",
             command=self._do_update,
-            bg=BLUE, fg="white", activebackground=BLUE2, activeforeground="white",
+            bg=PANEL2, fg=TEXT, activebackground=BLUE2, activeforeground="white",
+            disabledforeground=DIM,
             relief="flat", font=(FONT, 11, "bold"), padx=28, pady=11,
             cursor="hand2", state="disabled")
         self._action_btn.pack(side="right")
@@ -263,8 +286,10 @@ class Updater(tk.Tk):
 
     def _refresh_import_btn(self):
         has_folder = bool(self._import_folder.get())
-        state = "normal" if has_folder else "disabled"
-        self._import_apply_btn.config(state=state)
+        if has_folder:
+            self._import_apply_btn.config(state="normal", bg=BLUE, fg="white")
+        else:
+            self._import_apply_btn.config(state="disabled", bg=PANEL2, fg=TEXT)
 
     def _apply_import(self):
         install_path = self._import_folder.get()
@@ -319,7 +344,7 @@ class Updater(tk.Tk):
         # Reset UI state for re-check after import
         self.after(0, lambda: (
             self._set_status("⏳", "Verificando atualizações…"),
-            self._action_btn.config(state="disabled", text="Atualizar agora"),
+            self._action_btn.config(state="disabled", text="Atualizar agora", bg=PANEL2, fg=TEXT),
             self._changelog_frame.pack_forget(),
             self._log_frame.pack_forget(),
         ))
@@ -381,13 +406,13 @@ class Updater(tk.Tk):
                     "🔄", f"Nova versão disponível: v{latest}",
                     f"Você tem v{current}. Clique em Atualizar agora para instalar v{latest}."),
                 self._show_changelog(changelog),
-                self._action_btn.config(state="normal"),
+                self._action_btn.config(state="normal", bg=BLUE, fg="white"),
             ))
 
     # ── Update ────────────────────────────────────────────────────────────────
 
     def _do_update(self):
-        self._action_btn.config(state="disabled", text="Atualizando…")
+        self._action_btn.config(state="disabled", text="Atualizando…", bg=PANEL2, fg=TEXT)
         self._changelog_frame.pack_forget()
         self._log_frame.pack(fill="x", after=self._status_card)
         self._set_status("⏳", "Atualizando…", "Não feche esta janela.")
@@ -421,7 +446,7 @@ class Updater(tk.Tk):
                 self._log(msg, "err"),
                 self._set_status("❌", "Erro na atualização", msg, error=True),
                 self._action_btn.config(state="normal", text="Tentar novamente",
-                                        command=self._do_update),
+                                        bg=BLUE, fg="white", command=self._do_update),
             ))
 
         def _thread():
@@ -541,7 +566,7 @@ class Updater(tk.Tk):
                 self._log(f"\n✅  Atualização para v{version} concluída!", "ok"),
                 self._set_status("✅", f"Finance Bot v{version} instalado!",
                                  "Seu bot já está rodando a versão mais recente."),
-                self._action_btn.config(state="disabled"),
+                self._action_btn.config(state="disabled", bg=PANEL2, fg=TEXT),
                 self._close_btn.config(text="Fechar", bg=BLUE, fg="white"),
             ))
 
