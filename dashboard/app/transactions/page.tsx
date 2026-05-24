@@ -138,7 +138,7 @@ function TransactionsContent() {
 
   const defaultDebitCardId = cards?.find(c => c.is_default_debit)?.id ?? "";
   const defaultCreditCardId = cards?.find(c => c.is_default_credit)?.id ?? "";
-  const defaultCardId = defaultDebitCardId || defaultCreditCardId || cards?.[0]?.id ?? "";
+  const defaultCardId = defaultDebitCardId || defaultCreditCardId || (cards?.[0]?.id ?? "");
 
   const { data: users } = useQuery<string[]>({
     queryKey: ["users"],
