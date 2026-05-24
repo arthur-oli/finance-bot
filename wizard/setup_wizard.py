@@ -3196,14 +3196,12 @@ class Wizard(tk.Tk):
         url_row.pack(fill="x", pady=(0, 4))
         for col_idx, (icon, label, url_key) in enumerate([
             ("🌐", "Painel web", "dashboard"),
-            ("⚙️", "Backend", "backend"),
         ]):
             url = urls.get(url_key, "")
             if not url:
                 continue
             col = tk.Frame(url_row, bg=BG)
-            col.pack(side="left", fill="x", expand=True,
-                     padx=(0, 8) if col_idx == 0 else (8, 0))
+            col.pack(side="left", fill="x", expand=True, padx=0)
             card = tk.Frame(col, bg=PANEL, pady=10, padx=14)
             card.pack(fill="x")
             tk.Label(card, text=f"{icon}  {label}", bg=PANEL, fg=MUTED,
@@ -3248,7 +3246,7 @@ class Wizard(tk.Tk):
             ("2", "A qualquer momento, mande  /ajuda  pro bot pra rever o tutorial."),
             ("3", "Acesse o painel web e entre com a senha que você definiu."),
             ("4", "Cadastre seus cartões no painel antes de usar — assim o bot reconhece eles nas suas mensagens."),
-            ("5", "Explore as configurações do painel — categorias, metas, assinaturas e cartões compartilhados ficam em  Configurações."),
+            ("5", "Em  Config  no painel, ajuste categorias e preferências do bot."),
             ("6", "Para atualizar no futuro, execute o  FinanceBotUpdate.exe."),
         ]:
             row = tk.Frame(body, bg=BG)
