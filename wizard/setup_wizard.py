@@ -3092,14 +3092,14 @@ class Wizard(tk.Tk):
                      ])
 
         body = tk.Frame(p, bg=BG)
-        body.pack(fill="both", expand=True, padx=32, pady=(10, 0))
+        body.pack(fill="both", expand=True, padx=32, pady=(6, 0))
 
         # ── Status cards (backend + telegram) — lado a lado ──────────────────
         _tg_token   = self._var("TELEGRAM_BOT_TOKEN").get().strip()
         _tg_user_id = self._var("TELEGRAM_USER_IDS").get().strip().split(",")[0].strip()
 
         status_row = tk.Frame(body, bg=BG)
-        status_row.pack(fill="x", pady=(0, 6))
+        status_row.pack(fill="x", pady=(0, 4))
 
         def _make_status_card(parent, init_text, retry_label, side_pad):
             col = tk.Frame(parent, bg=BG)
@@ -3209,7 +3209,7 @@ class Wizard(tk.Tk):
             self.after(1600, _do_tg_test)
 
         url_row = tk.Frame(body, bg=BG)
-        url_row.pack(fill="x", pady=(0, 4))
+        url_row.pack(fill="x", pady=(0, 2))
         for col_idx, (icon, label, url_key) in enumerate([
             ("🌐", "Painel web", "dashboard"),
         ]):
@@ -3218,15 +3218,15 @@ class Wizard(tk.Tk):
                 continue
             col = tk.Frame(url_row, bg=BG)
             col.pack(side="left", fill="x", expand=True, padx=0)
-            card = tk.Frame(col, bg=PANEL, pady=10, padx=14)
+            card = tk.Frame(col, bg=PANEL, pady=6, padx=14)
             card.pack(fill="x")
             tk.Label(card, text=f"{icon}  {label}", bg=PANEL, fg=MUTED,
                      font=(FONT, 9)).pack(anchor="w")
             url_lbl = tk.Label(card, text=url, bg=PANEL, fg=GREEN,
-                               font=("Consolas", 9), wraplength=290, justify="left")
+                               font=("Consolas", 9), wraplength=0, justify="left")
             url_lbl.pack(anchor="w", pady=(3, 0))
             btns = tk.Frame(card, bg=PANEL)
-            btns.pack(anchor="w", pady=(6, 0))
+            btns.pack(anchor="w", pady=(4, 0))
             def _copy(u=url):
                 self.clipboard_clear(); self.clipboard_append(u)
             tk.Button(btns, text="Abrir  →",
@@ -3239,8 +3239,8 @@ class Wizard(tk.Tk):
                       font=(FONT, 8), padx=8, pady=4, cursor="hand2").pack(side="left")
 
         # ── Senha do painel ───────────────────────────────────────────────────
-        pw_bar = tk.Frame(body, bg="#7c2d12", pady=8, padx=14)
-        pw_bar.pack(fill="x", pady=(8, 0))
+        pw_bar = tk.Frame(body, bg="#7c2d12", pady=5, padx=14)
+        pw_bar.pack(fill="x", pady=(4, 0))
         pw_left = tk.Frame(pw_bar, bg="#7c2d12")
         pw_left.pack(side="left", fill="x", expand=True)
         tk.Label(pw_left,
@@ -3256,7 +3256,7 @@ class Wizard(tk.Tk):
                   cursor="hand2").pack(side="right", padx=(8, 0))
 
         tk.Label(body, text="Próximos passos:", bg=BG, fg=TEXT,
-                 font=(FONT, 11, "bold")).pack(anchor="w", pady=(10, 4))
+                 font=(FONT, 11, "bold")).pack(anchor="w", pady=(6, 2))
         for num, step in [
             ("1", "Abra o Telegram, encontre seu bot pelo nome e clique em START — ele vai te explicar como usar tudo."),
             ("2", "A qualquer momento, mande  /ajuda  pro bot pra rever o tutorial."),

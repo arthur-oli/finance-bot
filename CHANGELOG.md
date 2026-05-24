@@ -13,8 +13,8 @@
 - **Cartões** — cadastre cartões de crédito e débito; defina padrão por tipo para o bot usar automaticamente
 - **Múltiplos usuários** — suporte a mais de um usuário no mesmo bot
 - **Exportação CSV** — baixe todas as transações direto pelo painel
-- **Wizard de instalação** — configura e publica tudo automaticamente em ~15 minutos, sem precisar saber programar
-- **Atualizador** — `FinanceBotUpdate.exe` atualiza o bot para a versão mais recente com um clique
+- **Wizard de instalação** — configura e publica tudo automaticamente em ~15 minutos, sem precisar saber programar *(Windows only)*
+- **Atualizador** — `FinanceBotUpdate.exe` atualiza o bot para a versão mais recente com um clique *(Windows only)*
 
 ### Stack
 

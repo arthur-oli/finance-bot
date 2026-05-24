@@ -25,6 +25,8 @@ Acesse o dashboard pelo navegador para ver gráficos, histórico e exportar suas
 
 ## Instalação
 
+> **Windows only.** O assistente de instalação e o atualizador rodam apenas no Windows. O bot, o backend e o dashboard funcionam em cloud e são acessíveis de qualquer dispositivo após a instalação.
+
 Baixe o `FinanceBotSetup.exe` na página de [Releases](https://github.com/arthur-oli/finance-bot/releases) e siga o assistente. Ele cria todas as contas necessárias, configura e publica tudo automaticamente — sem precisar saber programar.
 
 **Tempo estimado: ~15 minutos.**
