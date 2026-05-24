@@ -3244,10 +3244,10 @@ class Wizard(tk.Tk):
         tk.Label(body, text="Próximos passos:", bg=BG, fg=TEXT,
                  font=(FONT, 11, "bold")).pack(anchor="w", pady=(10, 4))
         for num, step in [
-            ("1", "Abra o Telegram, encontre seu bot pelo nome e clique em START."),
-            ("2", "Mande uma mensagem como:  gastei 50 reais no mercado."),
+            ("1", "Abra o Telegram, encontre seu bot pelo nome e clique em START — ele vai te explicar como usar tudo."),
+            ("2", "A qualquer momento, mande  /ajuda  pro bot pra rever o tutorial."),
             ("3", "Acesse o painel web e entre com a senha que você definiu."),
-            ("4", "Cadastre seus cartões no painel antes de usar."),
+            ("4", "Cadastre seus cartões no painel antes de usar — assim o bot reconhece eles nas suas mensagens."),
             ("5", "Explore as configurações do painel — categorias, metas, assinaturas e cartões compartilhados ficam em  Configurações."),
             ("6", "Para atualizar no futuro, execute o  FinanceBotUpdate.exe."),
         ]:
