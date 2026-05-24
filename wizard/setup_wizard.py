@@ -1118,8 +1118,8 @@ class Wizard(tk.Tk):
 
         def _install_all():
             with v_lock:
-                pending_indices = [i for i, (_, _, _, chk_fn) in enumerate(items)
-                                   if chk_fn not in verified]
+                pending_indices = [i for i, item in enumerate(items)
+                                   if item[3] not in verified]
             if not pending_indices:
                 return
             install_all_ref[0].config(state="disabled", bg=DIM, text="Instalando…")
