@@ -17,6 +17,20 @@ def create_card(body: CardCreate):
     return svc.create_card(body)
 
 
+# Rota literal /default DEVE vir antes de /{id} pra nao ser interpretada como UUID
+@router.delete("/default", status_code=204)
+def clear_default_card():
+    svc.clear_default()
+
+
+@router.post("/{id}/default", response_model=Card)
+def set_default_card(id: UUID):
+    card = svc.set_default(id)
+    if not card:
+        raise HTTPException(404, "Card not found")
+    return card
+
+
 @router.get("/{id}", response_model=Card)
 def get_card(id: UUID):
     card = svc.get_card(id)

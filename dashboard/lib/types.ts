@@ -25,6 +25,7 @@ export interface Card {
   closing_day: number | null;
   due_day: number | null;
   active: boolean;
+  is_default: boolean;
   owner: string | null;
   created_at: string;
 }

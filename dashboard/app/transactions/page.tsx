@@ -136,7 +136,7 @@ function TransactionsContent() {
     queryFn: () => api.get("/api/cards/"),
   });
 
-  const defaultCardId = cards?.[0]?.id ?? "";
+  const defaultCardId = cards?.find(c => c.is_default)?.id ?? cards?.[0]?.id ?? "";
 
   const { data: users } = useQuery<string[]>({
     queryKey: ["users"],

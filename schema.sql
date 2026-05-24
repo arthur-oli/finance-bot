@@ -23,9 +23,15 @@ CREATE TABLE IF NOT EXISTS cards (
     closing_day  INT,
     due_day      INT,
     active       BOOLEAN DEFAULT true,
+    is_default   BOOLEAN DEFAULT false,
     owner        TEXT,
     created_at   TIMESTAMPTZ DEFAULT now()
 );
+
+-- Migracao para instalacoes existentes: adiciona is_default se nao existir
+ALTER TABLE cards ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false;
+-- So um cartao pode ser default por vez (partial unique index)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_one_default ON cards (is_default) WHERE is_default = true;
 
 CREATE TABLE IF NOT EXISTS transactions (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),

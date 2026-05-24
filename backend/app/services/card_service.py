@@ -5,7 +5,7 @@ from app.schemas.card import Card, CardCreate, CardUpdate
 
 def list_cards(active_only: bool = True) -> list[Card]:
     db = get_client()
-    q = db.table("cards").select("id,name,type,card_limit,closing_day,due_day,active,owner,created_at")
+    q = db.table("cards").select("id,name,type,card_limit,closing_day,due_day,active,is_default,owner,created_at")
     if active_only:
         q = q.eq("active", True)
     res = q.order("name").execute()
@@ -20,7 +20,7 @@ def create_card(data: CardCreate) -> Card:
 
 def get_card(id: UUID) -> Card | None:
     db = get_client()
-    res = db.table("cards").select("id,name,type,card_limit,closing_day,due_day,active,owner,created_at").eq("id", str(id)).execute()
+    res = db.table("cards").select("id,name,type,card_limit,closing_day,due_day,active,is_default,owner,created_at").eq("id", str(id)).execute()
     if not res.data:
         return None
     return Card(**res.data[0])
@@ -41,3 +41,22 @@ def delete_card(id: UUID) -> bool:
     db = get_client()
     res = db.table("cards").delete().eq("id", str(id)).execute()
     return bool(res.data)
+
+
+def set_default(id: UUID) -> Card | None:
+    """Marca o cartao como padrao. Atomico: zera is_default em todos e seta o novo.
+    O index parcial unique garante que so 1 cartao pode ser default por vez."""
+    db = get_client()
+    # 1) Zera todos os defaults atuais (PostgREST exige filtro - usa is_default=true)
+    db.table("cards").update({"is_default": False}).eq("is_default", True).execute()
+    # 2) Marca o novo
+    res = db.table("cards").update({"is_default": True}).eq("id", str(id)).execute()
+    if not res.data:
+        return None
+    return Card(**res.data[0])
+
+
+def clear_default() -> None:
+    """Remove o cartao padrao (zera todos)."""
+    db = get_client()
+    db.table("cards").update({"is_default": False}).eq("is_default", True).execute()
