@@ -2489,6 +2489,9 @@ class Wizard(tk.Tk):
                 if state == "error":
                     if not log_visible[0]:
                         _toggle_log()
+                    retry_btn_ref[0].config(bg=YELLOW, fg="#1c1917",
+                                            activebackground="#d97706",
+                                            text="↺  Tentar novamente")
                     retry_btn_ref[0].pack(anchor="w", pady=(10, 0))
                     log_link.pack(anchor="w", pady=(2, 0))
             self.after(0, _update)
@@ -2567,6 +2570,10 @@ class Wizard(tk.Tk):
                     _log("\n✅  [DEMO] Publicação simulada concluída!", "ok"),
                     done_btn.config(state="normal", bg=BLUE),
                     deploy_banner.pack(fill="x", pady=(0, 8), before=cards_frame),
+                    retry_btn_ref[0].config(bg=PANEL2, fg=MUTED,
+                                            activebackground=PANEL,
+                                            text="↺  Tentar novamente"),
+                    retry_btn_ref[0].pack(anchor="w", pady=(6, 0)),
                 ))
                 return
             v        = {k: var.get().strip() for k, var in self._vars.items()}
@@ -2942,6 +2949,10 @@ class Wizard(tk.Tk):
                 _log("\n✅  Publicação concluída!", "ok"),
                 done_btn.config(state="normal", bg=BLUE),
                 deploy_banner.pack(fill="x", pady=(0, 8), before=cards_frame),
+                retry_btn_ref[0].config(bg=PANEL2, fg=MUTED,
+                                        activebackground=PANEL,
+                                        text="↺  Tentar novamente"),
+                retry_btn_ref[0].pack(anchor="w", pady=(6, 0)),
             ))
 
         threading.Thread(target=deploy, daemon=True).start()
