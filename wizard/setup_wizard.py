@@ -2042,9 +2042,14 @@ class Wizard(tk.Tk):
                          _login_vercel, _refresh_nb)
 
         tk.Label(body,
-                 text="Siga as instruções no navegador para fazer login.\n"
-                      "Se a janela preta perguntar sobre atualização, pressione  N  e  Enter.",
-                 bg=BG, fg=DIM, font=(FONT, 9), justify="left").pack(anchor="w", pady=(8, 0))
+                 text="Siga as instruções no navegador para fazer login.",
+                 bg=BG, fg=DIM, font=(FONT, 9), justify="left").pack(anchor="w", pady=(8, 2))
+        tk.Label(body,
+                 text="Após autorizar no navegador, volte para a janela preta e pressione  Enter.",
+                 bg=BG, fg=TEXT, font=(FONT, 9, "bold"), justify="left").pack(anchor="w")
+        tk.Label(body,
+                 text="Se perguntar sobre atualização, pressione  N  e  Enter.",
+                 bg=BG, fg=DIM, font=(FONT, 9), justify="left").pack(anchor="w", pady=(2, 0))
 
         return p
 
