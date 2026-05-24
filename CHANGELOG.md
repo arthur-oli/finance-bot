@@ -1,8 +1,8 @@
 # Changelog
 
-## v1.0.0 — Lançamento inicial (acesso antecipado)
+## v1.0.0 — Lançamento inicial
 
-> **Versão inicial de uso pessoal.** O bot está funcional no dia a dia, mas ainda em desenvolvimento ativo — podem existir bugs e comportamentos inesperados. Feedbacks são bem-vindos.
+> **Versão inicial de uso pessoal.** O bot está funcional no dia a dia, mas ainda em desenvolvimento ativo — podem existir bugs e comportamentos inesperados.
 
 ### Funcionalidades
 
