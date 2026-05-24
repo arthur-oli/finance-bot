@@ -2,7 +2,7 @@
 
 ## v1.0.0 — Lançamento inicial
 
-> **Versão inicial de uso pessoal.** O bot está funcional no dia a dia, mas ainda em desenvolvimento ativo — podem existir bugs e comportamentos inesperados.
+> **Versão inicial de uso pessoal.** O bot está funcional no dia a dia, mas ainda em desenvolvimento ativo — podem existir bugs e comportamentos inesperados. Feedbacks, sugestões de features e reporte de bugs são bem-vindos.
 
 ### Funcionalidades
 
