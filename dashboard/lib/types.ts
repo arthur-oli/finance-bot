@@ -25,7 +25,8 @@ export interface Card {
   closing_day: number | null;
   due_day: number | null;
   active: boolean;
-  is_default: boolean;
+  is_default_debit: boolean;
+  is_default_credit: boolean;
   owner: string | null;
   created_at: string;
 }
@@ -90,7 +91,6 @@ export interface Settings {
   active_categories: string[];
   establishments: Record<string, string[]>;
   detail_markets: string[];
-  default_pix_card: string;
   additional_system_prompt: string;
   allowed_telegram_ids: number[];
 }

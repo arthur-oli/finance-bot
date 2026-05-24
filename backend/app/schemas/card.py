@@ -31,7 +31,8 @@ class Card(BaseModel):
     closing_day: Optional[int] = None
     due_day: Optional[int] = None
     active: bool
-    is_default: bool = False
+    is_default_debit: bool = False
+    is_default_credit: bool = False
     owner: Optional[str] = None
     created_at: datetime
 

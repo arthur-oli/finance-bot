@@ -10,6 +10,14 @@ function getOwner(c: Card): string {
 
 const EMPTY_FORM = { name: "", type: "credit" as "credit" | "debit", card_limit: "", closing_day: "", due_day: "", owner: "" };
 
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
+  );
+}
+
 export default function CardsPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -44,19 +52,42 @@ export default function CardsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cards"] }),
   });
 
-  const setDefault = useMutation({
-    mutationFn: (id: string) => api.post<Card>(`/api/cards/${id}/default`, {}),
+  const setDefaultDebit = useMutation({
+    mutationFn: (id: string) => api.post<Card>(`/api/cards/${id}/default/debit`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cards"] }),
   });
 
-  const clearDefault = useMutation({
-    mutationFn: () => api.delete(`/api/cards/default`),
+  const clearDefaultDebit = useMutation({
+    mutationFn: () => api.delete(`/api/cards/default/debit`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cards"] }),
+  });
+
+  const setDefaultCredit = useMutation({
+    mutationFn: (id: string) => api.post<Card>(`/api/cards/${id}/default/credit`, {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cards"] }),
+  });
+
+  const clearDefaultCredit = useMutation({
+    mutationFn: () => api.delete(`/api/cards/default/credit`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cards"] }),
   });
 
   function toggleDefault(c: Card) {
-    if (c.is_default) clearDefault.mutate();
-    else setDefault.mutate(c.id);
+    if (c.type === "debit") {
+      if (c.is_default_debit) clearDefaultDebit.mutate();
+      else setDefaultDebit.mutate(c.id);
+    } else {
+      if (c.is_default_credit) clearDefaultCredit.mutate();
+      else setDefaultCredit.mutate(c.id);
+    }
+  }
+
+  function isDefault(c: Card) {
+    return c.type === "debit" ? c.is_default_debit : c.is_default_credit;
+  }
+
+  function defaultLabel(c: Card) {
+    return c.type === "debit" ? "padrão pix/déb" : "padrão créd";
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -147,6 +178,8 @@ export default function CardsPage() {
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">{owner}</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {ownerCards.map((c) => {
+                const def = isDefault(c);
+
                 if (editingId === c.id) return (
                   <div key={c.id} className="bg-gray-900 border border-sky-700/50 rounded-xl p-5 flex flex-col gap-3">
                     <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
@@ -184,16 +217,22 @@ export default function CardsPage() {
                 );
 
                 return (
-                  <div key={c.id} className={`bg-gray-900 border rounded-xl p-5 ${c.is_default ? "border-amber-500/60 ring-1 ring-amber-500/30" : c.active ? "border-gray-800" : "border-gray-700 opacity-50"}`}>
+                  <div key={c.id} className={`bg-gray-900 border rounded-xl p-5 ${def ? "border-amber-500/60 ring-1 ring-amber-500/30" : c.active ? "border-gray-800" : "border-gray-700 opacity-50"}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-start gap-2">
-                        <button onClick={() => toggleDefault(c)} title={c.is_default ? "Remover como padrão" : "Marcar como padrão"}
-                          className={`inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors ${c.is_default ? "text-amber-400 hover:text-amber-300" : "text-gray-600 hover:text-amber-400 hover:bg-gray-700/60"}`}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill={c.is_default ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <button
+                          onClick={() => toggleDefault(c)}
+                          title={def ? "Remover como padrão" : `Marcar como padrão ${c.type === "debit" ? "pix/débito" : "crédito"}`}
+                          className={`inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors ${def ? "text-amber-400 hover:text-amber-300" : "text-gray-600 hover:text-amber-400 hover:bg-gray-700/60"}`}
+                        >
+                          <StarIcon filled={def} />
                         </button>
                         <div>
                           <p className="font-semibold">{c.name}</p>
-                          <p className="text-sm text-gray-400">{c.type === "credit" ? "Crédito" : "Débito"}{c.is_default && <span className="ml-2 text-xs text-amber-400">• padrão</span>}</p>
+                          <p className="text-sm text-gray-400">
+                            {c.type === "credit" ? "Crédito" : "Débito"}
+                            {def && <span className="ml-2 text-xs text-amber-400">• {defaultLabel(c)}</span>}
+                          </p>
                         </div>
                       </div>
                       <div className="flex gap-2">

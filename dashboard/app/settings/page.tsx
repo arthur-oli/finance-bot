@@ -2,7 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import type { Card, Settings } from "@/lib/types";
+import type { Settings } from "@/lib/types";
 
 const ALL_CATEGORIES = [
   "alimentacao", "transporte", "saude", "lazer", "compras",
@@ -56,10 +56,6 @@ export default function SettingsPage() {
     queryKey: ["settings"],
     queryFn: () => api.get("/api/settings/"),
   });
-  const { data: cards } = useQuery<Card[]>({
-    queryKey: ["cards"],
-    queryFn: () => api.get("/api/cards/"),
-  });
   const { data: users } = useQuery<string[]>({
     queryKey: ["users"],
     queryFn: () => api.get("/api/users/"),
@@ -73,7 +69,6 @@ export default function SettingsPage() {
   const [newEst, setNewEst] = useState<Record<string, string>>({});
   const [detailMarkets, setDetailMarkets] = useState<string[]>([]);
   const [newMarket, setNewMarket] = useState("");
-  const [pixCard, setPixCard] = useState("");
   const [extraPrompt, setExtraPrompt] = useState("");
   const [timezone, setTimezone] = useState("America/Sao_Paulo");
   const [baseBalance, setBaseBalance] = useState("0");
@@ -86,7 +81,6 @@ export default function SettingsPage() {
     setCats(settings.active_categories?.length ? settings.active_categories : ALL_CATEGORIES);
     setEst(settings.establishments ?? {});
     setDetailMarkets(settings.detail_markets ?? []);
-    setPixCard(settings.default_pix_card ?? "");
     setExtraPrompt(settings.additional_system_prompt ?? "");
     setTimezone(settings.scheduler_timezone ?? "America/Sao_Paulo");
     setBaseBalance(String(settings.base_balance ?? "0"));
@@ -99,7 +93,6 @@ export default function SettingsPage() {
         active_categories: cats,
         establishments: est,
         detail_markets: detailMarkets,
-        default_pix_card: pixCard,
         additional_system_prompt: extraPrompt,
         scheduler_timezone: timezone,
         base_balance: parseFloat(baseBalance) || 0,
@@ -233,31 +226,6 @@ export default function SettingsPage() {
               </div>
             </Section>
 
-            <Section
-              title="Cartão padrão para pix / débito"
-              description='Quando o usuário diz "pix", "débito" ou "conta" sem mencionar cartão, o bot usa esse.'
-            >
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  className={inp}
-                  placeholder="Ex: Nubank Conta"
-                  value={pixCard}
-                  onChange={(e) => setPixCard(e.target.value)}
-                />
-                {cards && cards.length > 0 && (
-                  <select
-                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 focus:outline-none focus:border-emerald-600 sm:w-56"
-                    value=""
-                    onChange={(e) => e.target.value && setPixCard(e.target.value)}
-                  >
-                    <option value="">Escolher dos cartões…</option>
-                    {cards.map((c) => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </Section>
           </>
         )}
 

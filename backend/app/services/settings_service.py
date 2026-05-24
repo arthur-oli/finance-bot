@@ -36,7 +36,6 @@ def get_settings() -> SettingsResponse:
         active_categories=json.loads(cats_raw) if cats_raw else _DEFAULT_CATEGORIES,
         establishments=json.loads(est_raw) if est_raw else _DEFAULT_ESTABLISHMENTS,
         detail_markets=json.loads(dm_raw) if dm_raw else [],
-        default_pix_card=_get("default_pix_card") or "",
         additional_system_prompt=_get("additional_system_prompt") or "",
         allowed_telegram_ids=json.loads(ids_raw) if ids_raw else [],
     )
@@ -53,8 +52,6 @@ def update_settings(data: SettingsUpdate) -> SettingsResponse:
         _set("establishments", json.dumps(data.establishments, ensure_ascii=False))
     if data.detail_markets is not None:
         _set("detail_markets", json.dumps(data.detail_markets, ensure_ascii=False))
-    if data.default_pix_card is not None:
-        _set("default_pix_card", data.default_pix_card)
     if data.additional_system_prompt is not None:
         _set("additional_system_prompt", data.additional_system_prompt)
     if data.allowed_telegram_ids is not None:

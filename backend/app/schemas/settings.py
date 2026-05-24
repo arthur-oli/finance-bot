@@ -8,7 +8,6 @@ class SettingsUpdate(BaseModel):
     active_categories: list[str] | None = None
     establishments: dict[str, list[str]] | None = None
     detail_markets: list[str] | None = None
-    default_pix_card: str | None = None
     additional_system_prompt: str | None = None
     allowed_telegram_ids: list[int] | None = None
 
@@ -19,6 +18,5 @@ class SettingsResponse(BaseModel):
     active_categories: list[str]
     establishments: dict[str, list[str]]
     detail_markets: list[str]
-    default_pix_card: str
     additional_system_prompt: str
     allowed_telegram_ids: list[int]

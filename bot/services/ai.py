@@ -63,7 +63,6 @@ def _build_system_prompt(cards: list[dict]) -> str:
     cats = _active_categories()
     cat_str = "|".join(cats)
     establishments: dict[str, list[str]] = cfg.get("establishments") or _DEFAULT_ESTABLISHMENTS
-    pix_card: str = cfg.get("default_pix_card") or ""
     extra: str = cfg.get("additional_system_prompt") or ""
 
     est_lines = [
@@ -73,11 +72,14 @@ def _build_system_prompt(cards: list[dict]) -> str:
     ]
     est_section = "\n".join(est_lines) if est_lines else ""
 
-    pix_line = f' Palavras "pix", "débito", "conta" sem outro cartão → "{pix_card}".' if pix_card else ""
+    debit_card: str = next((c["name"] for c in cards if c.get("is_default_debit")), "")
+    credit_card: str = next((c["name"] for c in cards if c.get("is_default_credit")), "")
+    pix_line = f' Palavras "pix", "débito", "conta" sem outro cartão → "{debit_card}".' if debit_card else ""
+    credit_line = f' Palavra "crédito" sem outro cartão → "{credit_card}".' if credit_card else ""
     prompt = (
         f'Assistente financeiro pessoal. Extraia uma transação da mensagem e retorne APENAS JSON válido:\n'
         f'{{"type":"income|expense","amount":0.0,"category":"{cat_str}","description":"texto curto","date":"YYYY-MM-DD","card":null}}\n'
-        f'"card" = nome exato do cartão quando mencionado, ou null.{pix_line}\n'
+        f'"card" = nome exato do cartão quando mencionado, ou null.{pix_line}{credit_line}\n'
         f'Se não identificar transação: {{"error":"motivo"}}'
     )
     if est_section:

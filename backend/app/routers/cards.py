@@ -17,15 +17,28 @@ def create_card(body: CardCreate):
     return svc.create_card(body)
 
 
-# Rota literal /default DEVE vir antes de /{id} pra nao ser interpretada como UUID
-@router.delete("/default", status_code=204)
-def clear_default_card():
-    svc.clear_default()
+# Rotas literais DEVEM vir antes de /{id} pra nao virar UUID
+@router.delete("/default/debit", status_code=204)
+def clear_default_debit():
+    svc.clear_default_debit()
 
 
-@router.post("/{id}/default", response_model=Card)
-def set_default_card(id: UUID):
-    card = svc.set_default(id)
+@router.delete("/default/credit", status_code=204)
+def clear_default_credit():
+    svc.clear_default_credit()
+
+
+@router.post("/{id}/default/debit", response_model=Card)
+def set_default_debit(id: UUID):
+    card = svc.set_default_debit(id)
+    if not card:
+        raise HTTPException(404, "Card not found")
+    return card
+
+
+@router.post("/{id}/default/credit", response_model=Card)
+def set_default_credit(id: UUID):
+    card = svc.set_default_credit(id)
     if not card:
         raise HTTPException(404, "Card not found")
     return card
