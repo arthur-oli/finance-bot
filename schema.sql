@@ -81,3 +81,10 @@ CREATE TABLE IF NOT EXISTS seasonal_reserves (
     month        INT NOT NULL CHECK (month BETWEEN 1 AND 12),
     created_at   TIMESTAMPTZ DEFAULT now()
 );
+
+-- RLS: bloqueia acesso direto via anon key; service_role bypassa automaticamente
+ALTER TABLE transactions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cards              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goals              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seasonal_reserves  ENABLE ROW LEVEL SECURITY;
